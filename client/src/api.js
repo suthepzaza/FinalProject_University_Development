@@ -1,61 +1,36 @@
-const BASE = "http://localhost:3000/api";
+import axios from 'axios';
 
-async function readError(res) {
-    try {
-        const data = await res.json();
-        return data.error || "Request failed";
-    } catch {
-        return "Request failed";
-    }
-}
+const API = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+});
 
+// Pass JWT token automatically with every request
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default API;
+
+// Backward-compatibility helpers for existing student manager components
 export async function getStudents() {
-    const res = await fetch(`${BASE}/students`);
-    if (!res.ok) {
-        throw new Error(await readError(res));
-    }
-    return res.json();
+  const res = await API.get('/students');
+  return res.data;
 }
 
 export async function loginUser(email, password) {
-    const res = await fetch(`${BASE}/auth/login`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) {
-        throw new Error(await readError(res));
-    }
-    return res.json();
+  const res = await API.post('/auth/login', { email, password });
+  return res.data;
 }
 
-export async function createStudent(student, token) {
-    const res = await fetch(`${BASE}/students`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(student)
-    });
-    if (!res.ok) {
-        throw new Error(await readError(res));
-    }
-    return res.json();
+export async function createStudent(student) {
+  const res = await API.post('/students', student);
+  return res.data;
 }
 
-export async function deleteStudent(id, token) {
-    const res = await fetch(`${BASE}/students/${id}`, {
-        method: "DELETE",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    });
-    if (!res.ok) {
-        throw new Error(await readError(res));
-    }
-// DELETE returns 204 No Content.
-// Do not call res.json() here.
+export async function deleteStudent(id) {
+  await API.delete(`/students/${id}`);
 }
