@@ -1,114 +1,74 @@
-import { useEffect, useState } from "react";
-import {
-  getStudents,
-  loginUser,
-  createStudent,
-  deleteStudent
-} from "./api";
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import StudentDashboard from './pages/StudentDashboard';
+import AdvisorDashboard from './pages/AdvisorDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
-import LoginForm from "./components/LoginForm";
-import AddStudentForm from "./components/AddStudentForm";
-import StudentList from "./components/StudentList";
+// ProtectedRoute component to enforce authentication and role access
+function ProtectedRoute({ children, allowedRole }) {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-function App() {
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [token, setToken] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [actionError, setActionError] = useState("");
-  useEffect(() => {
-    async function loadStudents() {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await getStudents();
-        setStudents(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadStudents();
-  }, []);
-  async function handleLogin(email, password) {
-    try {
-      setLoginError("");
-      const data = await loginUser(email, password);
-      setToken(data.token);
-    } catch (err) {
-      setToken("");
-      setLoginError(err.message);
-    }
+  if (!token) {
+    return <Navigate to="/login" replace />;
   }
 
-  async function handleAdd(student) {
-    try {
-      setActionError("");
-      const created = await createStudent(student, token);
-      setStudents((currentStudents) => [
-        created,
-        ...currentStudents
-      ]);
-    } catch (err) {
-      setActionError(err.message);
-    }
+  // If a specific role is required and doesn't match:
+  if (allowedRole && user.role !== allowedRole) {
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user.role === 'advisor') return <Navigate to="/advisor" replace />;
+    if (user.role === 'student') return <Navigate to="/student" replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  async function handleDelete(id) {
-    try {
-      setActionError("");
-      await deleteStudent(id, token);
-      setStudents((currentStudents) =>
-        currentStudents.filter(
-          (student) => student._id !== id
-        )
-      );
-    } catch (err) {
-      setActionError(err.message);
-    }
-  }
-return (
-<div className="page">
-  <header>
-    <h1>CSC220 Student Manager</h1>
-    <p>React + Express + MongoDB</p>
-  </header>
-  
-  <LoginForm
-  onLogin={handleLogin}
-  loginError={loginError}
-  />
-  {token ? (
-    <p className="success">
-      Logged in. Protected actions are enabled.
-    </p>
-) : (
-  <p className="note">
-  GET is public. Login is required for Add and Delete.
-  </p>
-)}
-
-<AddStudentForm
-onAdd={handleAdd}
-disabled={!token}
-/>
-
-{actionError && (
-    <p className="error">{actionError}</p>
-    )}
-    <h2>Students ({students.length})</h2>
-    
-  <StudentList
-  students={students}
-  loading={loading}
-  error={error}
-  onDelete={handleDelete}
-  canDelete={Boolean(token)}
-  />
-</div>
-);
+  return children;
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Default route */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/* Public Login & Register */}
+        <Route path="/login" element={<LoginPage initialSignUp={false} />} />
+        <Route path="/register" element={<LoginPage initialSignUp={true} />} />
+
+        {/* Student Dashboard */}
+        <Route
+          path="/student"
+          element={
+            <ProtectedRoute allowedRole="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Advisor Dashboard */}
+        <Route
+          path="/advisor"
+          element={
+            <ProtectedRoute allowedRole="advisor">
+              <AdvisorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Dashboard */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch-all */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}

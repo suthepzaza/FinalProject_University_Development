@@ -9,17 +9,41 @@ const router = express.Router();
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { name, email, password, studentId, role } = req.body;
+        
+        // 1. Check if email already registered
+        const existing = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existing) {
+            return res.status(400).json({
+                error: "This email is already registered. Please log in instead."
+            });
+        }
+
+        // 2. Generate random 6-digit numeric studentId if not provided
+        const { generateRandomId } = require("../utils/randomId");
+        const numericId = studentId || generateRandomId();
+
         const user = await User.create({
-            email,
-            password
+            name: name || email.split('@')[0],
+            email: email.toLowerCase().trim(),
+            password,
+            role: role || "student",
+            studentId: numericId
         });
+
         res.status(201).json({
             id: user._id,
+            name: user.name,
             email: user.email,
-            role: user.role
+            role: user.role,
+            studentId: user.studentId
         });
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({
+                error: "This email is already registered. Please log in instead."
+            });
+        }
         res.status(400).json({
             error: error.message
         });
@@ -34,21 +58,32 @@ router.post("/login", async (req, res) => {
         const ok = user && await bcrypt.compare(password, user.password);
         if (!ok) {
             return res.status(401).json({
-                error: "Invalid credentials"
+                error: "Invalid email or password"
             });
         }
 
+        const secret = process.env.JWT_SECRET || "csc220_default_jwt_secret_key";
         const token = jwt.sign(
             {
                 id: user._id,
                 role: user.role
             },
-            process.env.JWT_SECRET,
+            secret,
             {
-                expiresIn: "1h"
+                expiresIn: "24h"
             }
         );
-        res.json({ token });
+
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                name: user.name || user.email.split('@')[0],
+                email: user.email,
+                role: user.role || 'student',
+                studentId: user.studentId || user.email.split('@')[0]
+            }
+        });
     } catch (error) {
         res.status(500).json({
             error: "Server error"
@@ -56,7 +91,7 @@ router.post("/login", async (req, res) => {
     }
 });
 
-//GET /api/auth/me
+// GET /api/auth/me
 router.get("/me", auth, async (req, res) => {
     res.json({
         id: req.user.id,

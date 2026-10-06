@@ -2,7 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const connectDB = require("./config/db");
-//const Student = require("./models/Student");
+const meRoutes = require("./routes/me");
+const userRoutes = require("./routes/users");
+const offeringRoutes = require("./routes/offerings");
 const studentRoutes = require("./routes/students");
 const path = require("path");
 
@@ -18,8 +20,11 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "frontpage.html"));
 });
 
-    app.use("/api/students", studentRoutes);
-    app.use("/api/auth", authRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/me", meRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/offerings", offeringRoutes);
 
     app.use((req, res) => {
         res.status(404).json({ error: "Route not found" });
