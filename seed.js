@@ -1,213 +1,106 @@
-require("dotenv").config();
-const dns = require("node:dns");
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
-
+﻿require("dotenv").config({ path: require("node:path").join(__dirname, ".env"), quiet: true });
 const mongoose = require("mongoose");
 const User = require("./models/User");
 const Course = require("./models/Course");
 const Offering = require("./models/Offering");
 const AcademicRecord = require("./models/AcademicRecord");
 const Registration = require("./models/Registration");
+const Student = require("./models/Student");
+
+const TERM = "2026-1";
+const PASSWORD = "password123";
+// Synthetic, deterministic coursework fixture; prerequisites are course codes.
+const catalogue = [
+  ["CSC101", "Introduction to Computer Science", 3, []],
+  ["CSC102", "Data Structures & Algorithms", 4, ["CSC101"]],
+  ["CSC220", "Web Application Development", 3, ["CSC101"]],
+  ["MAT101", "Calculus I", 3, []],
+  ["ENG101", "Academic English Writing", 3, []],
+  ["CSC103", "Programming Fundamentals", 3, ["CSC101"]],
+  ["CSC201", "Object Oriented Programming", 3, ["CSC103"]],
+  ["CSC202", "Database Systems", 3, ["CSC102"]],
+  ["CSC203", "Computer Architecture", 3, ["CSC101"]],
+  ["CSC204", "Operating Systems", 3, ["CSC203"]],
+  ["CSC205", "Computer Networks", 3, ["CSC101"]],
+  ["MAT102", "Calculus II", 3, ["MAT101"]],
+  ["MAT201", "Discrete Mathematics", 3, ["MAT101"]],
+  ["STA101", "Introduction to Statistics", 3, []],
+  ["ENG102", "English Communication", 3, ["ENG101"]],
+  ["CSC301", "Software Engineering", 3, ["CSC201", "CSC202"]],
+  ["CSC302", "Artificial Intelligence", 3, ["CSC102", "MAT201"]],
+  ["CSC303", "Information Security", 3, ["CSC205"]]
+];
 
 async function seed() {
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI is required. Copy .env.example to .env and set your database URI.");
+  }
   try {
-    console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("Connected successfully!");
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+    const models = [User, Course, Offering, AcademicRecord, Registration, Student];
+    const existing = await Promise.all(models.map(model => model.exists({})));
+    if (existing.some(Boolean)) {
+      throw new Error("Seed requires an empty database. Use a new database in MONGODB_URI; existing data has not been changed.");
+    }
+    await Promise.all(models.map(model => model.init()));
 
-    // 1. Clear existing seed collections
-    await User.deleteMany({});
-    await Course.deleteMany({});
-    await Offering.deleteMany({});
-    await AcademicRecord.deleteMany({});
-    await Registration.deleteMany({});
-    console.log("Cleared existing collections.");
-
-    // 2. Create Default Users (Admin, Advisor, and Student)
-    const admin = await User.create({
-      name: "System Admin",
-      email: "admin@stamford.edu",
-      password: "password123",
-      role: "admin",
-      studentId: "ADM001",
-      active: true
+    // create() runs User's save hook so every password is bcrypt hashed.
+    await User.create({ name: "System Admin", email: "admin@stamford.edu", password: PASSWORD, role: "admin", studentId: "ADM001", active: true });
+    const advisors = [];
+    for (let i = 0; i < 4; i++) {
+      advisors.push(await User.create({ name: `Dr. Advisor ${i + 1}`, email: i === 0 ? "advisor@stamford.edu" : `advisor${i + 1}@stamford.edu`, password: PASSWORD, role: "advisor", studentId: `ADV00${i + 1}`, active: true }));
+    }
+    const students = [];
+    for (let i = 0; i < 25; i++) {
+      students.push(await User.create({
+        name: i === 0 ? "Sami Parilti" : i === 1 ? "Alice Johnson" : `Student ${String(i + 1).padStart(2, "0")}`,
+        email: i === 0 ? "sami@stamford.edu" : i === 1 ? "alice@stamford.edu" : `student${String(i + 1).padStart(2, "0")}@stamford.edu`,
+        password: PASSWORD, role: "student", studentId: String(2407080009 + i), active: true
+      }));
+    }
+    const courses = await Course.insertMany(catalogue.map(([code, title, credits, prerequisites]) => ({
+      code, title, credits, prerequisites,
+      department: code.startsWith("CSC") ? "Computer Science" : code.startsWith("ENG") ? "Languages" : "Mathematics"
+    })));
+    const sections = [];
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    courses.forEach((course, i) => {
+      for (let section = 1; section <= (i < 8 ? 2 : 1); section++) {
+        const slot = sections.length;
+        const advisor = advisors[slot % advisors.length];
+        sections.push({ courseId: course._id, code: course.code, title: course.title, section: String(section), term: TERM,
+          day: days[slot % 5], startTime: slot % 2 === 0 ? "09:00" : "13:00", endTime: slot % 2 === 0 ? "12:00" : "16:00",
+          room: `Room ${401 + slot}`, instructor: advisor.name, advisorEmail: advisor.email, seats: 30, enrolled: 0, addDropOpen: true });
+      }
     });
+    await Offering.insertMany(sections);
 
-    const advisor = await User.create({
-      name: "Dr. Advisor",
-      email: "advisor@stamford.edu",
-      password: "password123",
-      role: "advisor",
-      studentId: "ADV001",
-      active: true
-    });
-
-    const studentSami = await User.create({
-      name: "Sami Parilti",
-      email: "sami@stamford.edu",
-      password: "password123",
-      role: "student",
-      studentId: "2407080009",
-      active: true
-    });
-
-    const studentAlice = await User.create({
-      name: "Alice Johnson",
-      email: "alice@stamford.edu",
-      password: "password123",
-      role: "student",
-      studentId: "2407080010",
-      active: true
-    });
-
-    console.log("Created 4 test users (Admin, Advisor, Sami, Alice).");
-
-    // 3. Create Sample Courses
-    const c1 = await Course.create({
-      code: "CSC101",
-      title: "Introduction to Computer Science",
-      credits: 3,
-      prerequisites: [],
-      department: "Computer Science"
-    });
-
-    const c2 = await Course.create({
-      code: "CSC102",
-      title: "Data Structures & Algorithms",
-      credits: 4,
-      prerequisites: ["CSC101"],
-      department: "Computer Science"
-    });
-
-    const c3 = await Course.create({
-      code: "CSC220",
-      title: "Web Application Development",
-      credits: 3,
-      prerequisites: ["CSC101"],
-      department: "Computer Science"
-    });
-
-    const c4 = await Course.create({
-      code: "MAT101",
-      title: "Calculus I",
-      credits: 3,
-      prerequisites: [],
-      department: "Mathematics"
-    });
-
-    const c5 = await Course.create({
-      code: "ENG101",
-      title: "Academic English Writing",
-      credits: 3,
-      prerequisites: [],
-      department: "Languages"
-    });
-
-    console.log("Created 5 sample courses (CSC101, CSC102, CSC220, MAT101, ENG101).");
-
-    // 4. Create Current Term Offerings (2026-1)
-    const off1 = await Offering.create({
-      courseId: c3._id,
-      code: c3.code,
-      title: c3.title,
-      section: "1",
-      term: "2026-1",
-      day: "Monday",
-      startTime: "09:00",
-      endTime: "12:00",
-      room: "Room 401",
-      instructor: "Dr. Advisor",
-      advisorEmail: "advisor@stamford.edu",
-      seats: 30,
-      enrolled: 1,
-      addDropOpen: true
-    });
-
-    const off2 = await Offering.create({
-      courseId: c2._id,
-      code: c2.code,
-      title: c2.title,
-      section: "2",
-      term: "2026-1",
-      day: "Wednesday",
-      startTime: "13:00",
-      endTime: "16:00",
-      room: "Lab 3",
-      instructor: "Prof. Alan Turing",
-      advisorEmail: "advisor@stamford.edu",
-      seats: 25,
-      enrolled: 1,
-      addDropOpen: true
-    });
-
-    const off3 = await Offering.create({
-      courseId: c4._id,
-      code: c4.code,
-      title: c4.title,
-      section: "1",
-      term: "2026-1",
-      day: "Friday",
-      startTime: "10:00",
-      endTime: "13:00",
-      room: "Hall B",
-      instructor: "Dr. Newton",
-      advisorEmail: "advisor@stamford.edu",
-      seats: 40,
-      enrolled: 0,
-      addDropOpen: false
-    });
-
-    console.log("Created 3 course offerings for term 2026-1.");
-
-    // 5. Create Academic Record (Prior Completed Courses for Sami)
-    await AcademicRecord.create({
-      studentId: studentSami._id,
-      courseId: c1._id,
-      term: "2025-2",
-      grade: "A"
-    });
-
-    await AcademicRecord.create({
-      studentId: studentSami._id,
-      courseId: c5._id,
-      term: "2025-2",
-      grade: "B+"
-    });
-
-    console.log("Created academic history for Sami (CSC101: A, ENG101: B+).");
-
-    // 6. Create Current Enrolled Registrations for Sami
-    await Registration.create({
-      studentId: studentSami._id,
-      offeringId: off1._id,
-      term: "2026-1",
-      status: "Enrolled"
-    });
-
-    await Registration.create({
-      studentId: studentSami._id,
-      offeringId: off2._id,
-      term: "2026-1",
-      status: "Enrolled"
-    });
-
-    console.log("Enrolled Sami into CSC220 & CSC102 for 2026-1.");
-
-    console.log("\n==========================================");
-    console.log("✅ SEEDING COMPLETE!");
-    console.log("Accounts created:");
-    console.log("  👤 Admin:   admin@stamford.edu   | Password: password123");
-    console.log("  👤 Advisor: advisor@stamford.edu | Password: password123");
-    console.log("  👤 Student: sami@stamford.edu    | Password: password123");
-    console.log("  👤 Student: alice@stamford.edu   | Password: password123");
-    console.log("==========================================\n");
-
-    process.exit(0);
-  } catch (err) {
-    console.error("Seeding error:", err);
-    process.exit(1);
+    // First 12 students have 13 completions; remaining 13 have 12: 312 total.
+    // Prerequisites are completed in earlier terms, before their dependants.
+    const history = [
+      ["CSC101", "2024-1"], ["MAT101", "2024-1"], ["ENG101", "2024-1"], ["STA101", "2024-1"],
+      ["CSC103", "2024-2"], ["CSC102", "2024-2"], ["CSC203", "2024-2"], ["MAT102", "2024-2"],
+      ["ENG102", "2024-2"], ["MAT201", "2024-2"], ["CSC201", "2025-1"], ["CSC202", "2025-1"], ["CSC204", "2025-2"]
+    ];
+    const byCode = new Map(courses.map(course => [course.code, course]));
+    const grades = ["A", "B+", "B", "C+", "C", "D+", "D"];
+    const records = students.flatMap((student, i) => history.slice(0, i < 12 ? 13 : 12).map(([code, term], j) => ({
+      studentId: student._id, courseId: byCode.get(code)._id, term, grade: grades[(i + j) % grades.length]
+    })));
+    await AcademicRecord.insertMany(records);
+    console.log("25 students, 4 advisors, 1 admin created");
+    console.log(`18 courses, 26 sections created for term ${TERM}`);
+    console.log(`${records.length} completed-course records created`);
+    console.log(`\nDemo logins (password: ${PASSWORD}):\n  Student: sami@stamford.edu\n  Advisor: advisor@stamford.edu\n  Admin:   admin@stamford.edu`);
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
-seed();
-
+if (require.main === module) {
+  seed().catch(error => {
+    console.error("Seeding failed:", error.message);
+    process.exitCode = 1;
+  });
+}
+module.exports = { seed };
