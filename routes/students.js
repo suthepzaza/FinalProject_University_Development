@@ -8,7 +8,9 @@ const Offering = require("../models/Offering");
 const auth = require("../middleware/auth");
 const requireRole = require("../middleware/requireRole");
 
+const requireOwnStudent = require("../middleware/requireOwnStudent");
 const router = express.Router();
+router.use(auth);
 
 // Helper to resolve student ObjectId from MongoDB _id or studentId string
 async function resolveStudentId(paramId) {
@@ -22,7 +24,7 @@ async function resolveStudentId(paramId) {
 }
 
 // GET /api/students/:id/record - Student's past academic records
-router.get("/:id/record", async (req, res) => {
+router.get("/:id/record", requireOwnStudent, async (req, res) => {
   try {
     const studentId = await resolveStudentId(req.params.id);
     const records = await AcademicRecord.find({ studentId }).populate("courseId");
@@ -33,7 +35,7 @@ router.get("/:id/record", async (req, res) => {
 });
 
 // GET /api/students/:id/eligible - Rules Engine: Prerequisite, Retake, Seat, and Clash Validation
-router.get("/:id/eligible", async (req, res) => {
+router.get("/:id/eligible", requireRole("advisor"), async (req, res) => {
   try {
     const term = req.query.term || "2026-1";
     const studentId = await resolveStudentId(req.params.id);
@@ -168,12 +170,12 @@ router.get("/:id/eligible", async (req, res) => {
   }
 });
 
-// GET all students - no token required
-router.get("/", async (req, res) => {
+// GET all students - advisor or admin
+router.get("/", requireRole("advisor", "admin"), async (req, res) => {
     try {
         let students = await Student.find();
         if (!students || students.length === 0) {
-            students = await User.find({ role: "student" });
+            students = await User.find({ role: "student" }).select("-password");
         }
         res.json(students);
     } catch (error) {
@@ -183,17 +185,17 @@ router.get("/", async (req, res) => {
     }
 });
 
-// GET one student - no token required
-router.get("/:id", async (req, res) => {
+// GET one student - advisor or own student
+router.get("/:id", requireOwnStudent, async (req, res) => {
     try {
         let student = null;
         if (mongoose.Types.ObjectId.isValid(req.params.id)) {
             student = await Student.findById(req.params.id);
             if (!student) {
-                student = await User.findById(req.params.id);
+                student = await User.findById(req.params.id).select("-password");
             }
         } else {
-            student = await User.findOne({ studentId: req.params.id });
+            student = await User.findOne({ studentId: req.params.id }).select("-password");
         }
 
         if (!student) {
@@ -211,7 +213,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST student - token required
-router.post("/", auth, async (req, res) => {
+router.post("/", requireRole("admin"), async (req, res) => {
     try {
         const created = await Student.create(req.body);
         res.status(201).json(created);
@@ -223,7 +225,7 @@ router.post("/", auth, async (req, res) => {
 });
 
 // PATCH student - token required
-router.patch("/:id", auth, async (req, res) => {
+router.patch("/:id", requireRole("admin"), async (req, res) => {
     try {
         const updated = await Student.findByIdAndUpdate(
             req.params.id,
@@ -249,7 +251,7 @@ router.patch("/:id", auth, async (req, res) => {
 });
 
 // DELETE student - token required
-router.delete("/:id", auth, requireRole("admin"), async (req, res) => {
+router.delete("/:id", requireRole("admin"), async (req, res) => {
     try {
         const deleted = await Student.findByIdAndDelete(req.params.id);
 

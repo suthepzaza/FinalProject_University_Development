@@ -4,10 +4,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
 
+const requireRole = require("../middleware/requireRole");
 const router = express.Router();
 
 // POST /api/auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", auth, requireRole("admin"), async (req, res) => {
     try {
         const { name, email, password, studentId, role } = req.body;
         
@@ -56,13 +57,14 @@ router.post("/login", async (req, res) => {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
         const ok = user && await bcrypt.compare(password, user.password);
-        if (!ok) {
+        if (!ok || user.active === false) {
             return res.status(401).json({
                 error: "Invalid email or password"
             });
         }
 
-        const secret = process.env.JWT_SECRET || "csc220_default_jwt_secret_key";
+        const secret = process.env.JWT_SECRET;
+        if (!secret) return res.status(500).json({ error: "Authentication is not configured" });
         const token = jwt.sign(
             {
                 id: user._id,

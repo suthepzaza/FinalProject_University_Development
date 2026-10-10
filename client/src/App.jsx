@@ -32,9 +32,9 @@ export default function App() {
         {/* Default route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
 
-        {/* Public Login & Register */}
+        {/* Public login */}
         <Route path="/login" element={<LoginPage initialSignUp={false} />} />
-        <Route path="/register" element={<LoginPage initialSignUp={true} />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
 
         {/* Student Dashboard */}
         <Route

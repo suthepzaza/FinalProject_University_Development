@@ -7,7 +7,7 @@ const requireRole = require("../middleware/requireRole");
 const router = express.Router();
 
 // GET /api/users - List all users (or filter by ?role=...)
-router.get("/", auth, async (req, res) => {
+router.get("/", auth, requireRole("admin"), async (req, res) => {
   try {
     const filter = {};
     if (req.query.role && req.query.role !== "all") {

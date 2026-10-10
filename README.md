@@ -1,6 +1,17 @@
 ﻿# FinalProject University Development
 
 Requires Node.js/npm and a running MongoDB instance (local MongoDB or Atlas).
+
+Authorization is enforced by the API: admins manage user accounts; advisors
+manage offerings and registrations and read student histories; students read
+offerings and their own records and registrations. Account creation is restricted
+to admins (`POST /api/users`, or the admin-only `/api/auth/register` endpoint).
+The login page requires a successful API login. Each protected request checks
+the account's current role and active status, so disabled or deleted accounts
+and old tokens carrying a previous role cannot retain access.
+
+Run `npm test` (or `npm.cmd test` in PowerShell) for authorization tests. These
+use mocked database queries and do not modify your database.
 Run these commands from this directory after cloning:
 
 ```sh

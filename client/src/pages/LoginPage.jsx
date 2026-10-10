@@ -1,51 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api';
 
-// Helper to get registered accounts list from localStorage
-function getStoredUsers() {
-  try {
-    const raw = localStorage.getItem('registered_users');
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error reading registered users', e);
-  }
-  // Default test accounts per course specification (Section 10)
-  return [
-    {
-      name: 'System Admin',
-      email: 'admin@stamford.edu',
-      password: 'password123',
-      role: 'admin',
-      studentId: 'ADM001'
-    },
-    {
-      name: 'Dr. Advisor',
-      email: 'advisor@stamford.edu',
-      password: 'password123',
-      role: 'advisor',
-      studentId: 'ADV001'
-    }
-  ];
-}
-
-// Helper to save a new user to registered list
-function saveStoredUser(newUser) {
-  const users = getStoredUsers();
-  const existingIdx = users.findIndex(
-    (u) => u.email.toLowerCase() === newUser.email.toLowerCase()
-  );
-  if (existingIdx >= 0) {
-    users[existingIdx] = newUser;
-  } else {
-    users.push(newUser);
-  }
-  localStorage.setItem('registered_users', JSON.stringify(users));
-}
-
-export default function LoginPage({ initialSignUp = false }) {
-  const [isSignUp, setIsSignUp] = useState(initialSignUp);
-  const [name, setName] = useState('');
+export default function LoginPage() {
+  const isSignUp = false;
   const [email, setEmail] = useState(() => localStorage.getItem('remembered_email') || '');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -53,174 +11,31 @@ export default function LoginPage({ initialSignUp = false }) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    setIsSignUp(initialSignUp);
-    setError('');
-    setSuccess('');
-  }, [initialSignUp]);
-
-  const handleToggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setError('');
-    setSuccess('');
-  };
-
   const handleForgotPassword = (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('Default demo accounts: admin@stamford.edu or sami@stamford.edu (Password: password123). Contact your administrator to reset credentials.');
+    setSuccess('Contact your administrator to reset your password.');
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
-
     const cleanEmail = email.trim().toLowerCase();
-
-    // Manage Remember Me preference
-    if (rememberMe) {
-      localStorage.setItem('remembered_email', cleanEmail);
-    } else {
-      localStorage.removeItem('remembered_email');
-    }
-
-    if (isSignUp) {
-      // ==========================================
-      // SIGN UP FLOW
-      // ==========================================
-      // 1. Check local list for duplicates
-      const storedUsers = getStoredUsers();
-      if (storedUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
-        setError('This email is already registered. Please log in instead.');
-        setLoading(false);
-        return;
-      }
-
-      const role = cleanEmail.includes('admin')
-        ? 'admin'
-        : cleanEmail.includes('advisor')
-        ? 'advisor'
-        : 'student';
-
-      // Generate random numeric 6-digit ID
-      const randomId = Math.floor(100000 + Math.random() * 900000).toString();
-
-      const newAccount = {
-        name: name.trim() || cleanEmail.split('@')[0],
-        email: cleanEmail,
-        password,
-        role,
-        studentId: randomId
-      };
-
-      try {
-        // Attempt backend registration
-        const res = await API.post('/auth/register', newAccount);
-        if (res.data?.studentId) {
-          newAccount.studentId = res.data.studentId;
-        }
-      } catch (err) {
-        // If server says duplicate email or validation failed, show the error!
-        if (err.response && err.response.data?.error) {
-          setError(err.response.data.error);
-          setLoading(false);
-          return;
-        }
-        console.warn('Backend unavailable, persisting registration locally.');
-      }
-
-      // Persist the newly signed up account
-      saveStoredUser(newAccount);
-
-      setSuccess('Account created successfully! Logging you in...');
-
-      // Store active session for the newly registered user
-      localStorage.setItem('token', 'auth_token_' + Date.now());
-      localStorage.setItem(
-        'user',
-        JSON.stringify({
-          name: newAccount.name,
-          email: newAccount.email,
-          role: newAccount.role,
-          studentId: newAccount.studentId
-        })
-      );
-
-      setTimeout(() => {
-        if (newAccount.role === 'admin') navigate('/admin');
-        else if (newAccount.role === 'advisor') navigate('/advisor');
-        else navigate('/student');
-      }, 700);
-
-      setLoading(false);
-    } else {
-      // ==========================================
-      // LOGIN FLOW (STRICT VALIDATION)
-      // ==========================================
-      let loginSuccess = false;
-
-      // 1. First try Live Backend if reachable
-      try {
-        const res = await API.post('/auth/login', { email: cleanEmail, password });
-        if (res.data?.token) {
-          localStorage.setItem('token', res.data.token);
-          if (res.data.user) {
-            localStorage.setItem('user', JSON.stringify(res.data.user));
-            const role = res.data.user.role;
-            loginSuccess = true;
-            if (role === 'admin') return navigate('/admin');
-            if (role === 'advisor') return navigate('/advisor');
-            return navigate('/student');
-          }
-        }
-      } catch (err) {
-        // If the backend returned a 401 or 400 (Invalid credentials), reject immediately!
-        if (err.response && (err.response.status === 401 || err.response.status === 400)) {
-          setError(err.response.data?.error || err.response.data?.message || 'Invalid email or password.');
-          setLoading(false);
-          return;
-        }
-      }
-
-      // 2. Local registered user verification (if backend is offline)
-      if (!loginSuccess) {
-        const storedUsers = getStoredUsers();
-        const foundUser = storedUsers.find(
-          (u) => u.email.toLowerCase() === cleanEmail
-        );
-
-        if (!foundUser) {
-          setError('No account found with this email. Please sign up first.');
-          setLoading(false);
-          return;
-        }
-
-        if (foundUser.password !== password) {
-          setError('Incorrect password. Please check your credentials.');
-          setLoading(false);
-          return;
-        }
-
-        // Credentials matched!
-        localStorage.setItem('token', 'auth_token_' + Date.now());
-        localStorage.setItem(
-          'user',
-          JSON.stringify({
-            name: foundUser.name,
-            email: foundUser.email,
-            role: foundUser.role,
-            studentId: foundUser.studentId
-          })
-        );
-
-        if (foundUser.role === 'admin') navigate('/admin');
-        else if (foundUser.role === 'advisor') navigate('/advisor');
-        else navigate('/student');
-      }
-
+    localStorage.removeItem('registered_users');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    if (rememberMe) localStorage.setItem('remembered_email', cleanEmail);
+    else localStorage.removeItem('remembered_email');
+    try {
+      const { data } = await API.post('/auth/login', { email: cleanEmail, password });
+      const dashboard = { admin: '/admin', advisor: '/advisor', student: '/student' }[data.user?.role];
+      if (!data.token || !dashboard) throw new Error('Invalid login response');
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      navigate(dashboard);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Unable to sign in. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -272,31 +87,6 @@ export default function LoginPage({ initialSignUp = false }) {
         )}
 
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Full Name Input (Sign-up only) */}
-          {isSignUp && (
-            <div>
-              <label htmlFor="name" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  placeholder="e.g. Sami Parilti"
-                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                />
-              </div>
-            </div>
-          )}
-
           {/* Email Address Input */}
           <div>
             <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -396,17 +186,7 @@ export default function LoginPage({ initialSignUp = false }) {
             )}
           </button>
 
-          {/* Toggle Switch inside the bottom of the card */}
-          <div className="text-sm font-medium text-center text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
-            {isSignUp ? 'Already have an account? ' : "Don’t have an account? "}
-            <button
-              type="button"
-              onClick={handleToggleMode}
-              className="text-blue-600 hover:underline font-semibold dark:text-blue-400 cursor-pointer bg-transparent border-0 p-0 ml-1 inline"
-            >
-              {isSignUp ? 'Log in here' : 'Sign up here'}
-            </button>
-          </div>
+          <p className="text-sm text-center text-gray-500">Contact your administrator to create an account.</p>
         </form>
       </div>
     </section>

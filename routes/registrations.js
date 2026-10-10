@@ -5,10 +5,12 @@ const Offering = require("../models/Offering");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
 
+const requireRole = require("../middleware/requireRole");
 const router = express.Router();
+router.use(auth);
 
 // GET /api/registrations?studentId=...&term=...
-router.get("/", async (req, res) => {
+router.get("/", requireRole("advisor"), async (req, res) => {
   try {
     const filter = {};
 
@@ -37,7 +39,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/registrations - Register student for an offering
-router.post("/", auth, async (req, res) => {
+router.post("/", requireRole("advisor"), async (req, res) => {
   try {
     const { studentId, offeringId, term } = req.body;
 
@@ -89,7 +91,7 @@ router.post("/", auth, async (req, res) => {
 });
 
 // DELETE /api/registrations/:id - Drop course registration
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", requireRole("advisor"), async (req, res) => {
   try {
     const reg = await Registration.findById(req.params.id);
     if (!reg) {

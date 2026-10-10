@@ -3,10 +3,12 @@ const Offering = require("../models/Offering");
 const Course = require("../models/Course");
 const auth = require("../middleware/auth");
 
+const requireRole = require("../middleware/requireRole");
 const router = express.Router();
+router.use(auth);
 
 // GET /api/offerings?term=...
-router.get("/", async (req, res) => {
+router.get("/", requireRole("advisor", "student"), async (req, res) => {
   try {
     const filter = {};
     if (req.query.term) filter.term = req.query.term;
@@ -18,7 +20,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/offerings - Create offering (Advisor)
-router.post("/", auth, async (req, res) => {
+router.post("/", requireRole("advisor"), async (req, res) => {
   try {
     const { code, title, section, term, day, startTime, endTime, room, instructor, seats } = req.body;
     let course = await Course.findOne({ code: code.toUpperCase() });
@@ -52,7 +54,7 @@ router.post("/", auth, async (req, res) => {
 });
 
 // PATCH /api/offerings/:id - Toggle add/drop window
-router.patch("/:id", auth, async (req, res) => {
+router.patch("/:id", requireRole("advisor"), async (req, res) => {
   try {
     const updated = await Offering.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
@@ -62,7 +64,7 @@ router.patch("/:id", auth, async (req, res) => {
 });
 
 // DELETE /api/offerings/:id - Delete offering
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", requireRole("advisor"), async (req, res) => {
   try {
     await Offering.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Offering deleted successfully" });

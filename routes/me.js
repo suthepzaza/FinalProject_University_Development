@@ -3,10 +3,12 @@ const auth = require("../middleware/auth");
 const Registration = require("../models/Registration");
 const AcademicRecord = require("../models/AcademicRecord");
 
+const requireRole = require("../middleware/requireRole");
 const router = express.Router();
+router.use(auth, requireRole("student"));
 
 // GET /api/me/registrations - student's current term registrations
-router.get("/registrations", auth, async (req, res) => {
+router.get("/registrations", async (req, res) => {
   try {
     const registrations = await Registration.find({ studentId: req.user.id })
       .populate({
@@ -20,7 +22,7 @@ router.get("/registrations", auth, async (req, res) => {
 });
 
 // GET /api/me/record - student's completed academic history
-router.get("/record", auth, async (req, res) => {
+router.get("/record", async (req, res) => {
   try {
     const record = await AcademicRecord.find({ studentId: req.user.id })
       .populate("courseId");
