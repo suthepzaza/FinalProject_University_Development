@@ -9,7 +9,7 @@ exports.list = async (req, res) => {
     const filter = {};
     if (req.query.term) filter.term = req.query.term;
     const offerings = await Offering.find(filter).populate("courseId");
-    res.json(offerings);
+    res.json(await Promise.all(offerings.map(require("../services/registration").addDropStatus)));
   } catch (err) {
     res.status(500).json({ error: "Failed to load offerings: " + err.message });
   }

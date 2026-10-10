@@ -8,8 +8,9 @@ const User = require("../models/User");
 const Course = require("../models/Course");
 const Offering = require("../models/Offering");
 const AcademicRecord = require("../models/AcademicRecord");
+const Term = require("../models/Term");
 const Registration = require("../models/Registration");
-const models = [User, Course, Offering, AcademicRecord, Registration];
+const models = [User, Course, Offering, AcademicRecord, Registration, Term];
 
 test("seed creates the complete validated dataset with hashed passwords and working role logins", async t => {
   const stored = new Map(models.map(model => [model, []]));
@@ -42,6 +43,7 @@ test("seed creates the complete validated dataset with hashed passwords and work
       });
     }
   }
+  t.mock.method(Term, "create", async data => { const doc = new Term(data); await doc.validate(); return doc; });
   // Keep User.create/save real so Mongoose validation and the bcrypt hook run.
   t.mock.method(User.collection, "insertOne", async document => {
     stored.get(User).push(document);

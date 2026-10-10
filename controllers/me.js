@@ -18,7 +18,12 @@ exports.registrations = async (req, res) => {
         path: "offeringId",
         populate: { path: "courseId" }
       });
-    res.json(registrations);
+    const result = await Promise.all(registrations.map(async registration => {
+      const row = registration.toObject();
+      if (registration.offeringId) row.offeringId = await require("../services/registration").addDropStatus(registration.offeringId);
+      return row;
+    }));
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: "Failed to load registrations: " + err.message });
   }

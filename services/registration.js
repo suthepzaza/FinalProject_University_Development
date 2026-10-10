@@ -3,6 +3,27 @@ const User = require("../models/User");
 const Offering = require("../models/Offering");
 const Registration = require("../models/Registration");
 const AcademicRecord = require("../models/AcademicRecord");
+const Term = require("../models/Term");
+async function lockTerm(code, session) {
+  const term = await Term.findOneAndUpdate({ code }, { $inc: { revision: 1 } }, {
+    upsert: true, returnDocument: "after", session, runValidators: true
+  });
+  if (term.finalized) fail("Term is finalized; registrations cannot be changed", 409);
+  return term;
+}
+exports.finalize = async code => mongoose.connection.transaction(async session => {
+  const term = await lockTerm(code, session);
+  term.finalized = true;
+  await term.save({ session });
+  return term;
+});
+exports.addDropStatus = async offering => {
+  const term = await Term.findOne({ code: offering.term });
+  const result = offering.toObject ? offering.toObject() : { ...offering };
+  result.addDropOpen = Boolean(offering.addDropOpen && offering.addDropClosesAt &&
+    new Date(offering.addDropClosesAt) > new Date() && !term?.finalized);
+  return result;
+};
 function fail(message, status = 400) { const error = new Error(message); error.status = status; throw error; }
 
 exports.register = async ({ studentId, offeringId, term }) => {
@@ -17,6 +38,7 @@ exports.register = async ({ studentId, offeringId, term }) => {
     await User.updateOne({ _id: student._id }, { $currentDate: { updatedAt: true } }, { session });
     const offering = await Offering.findById(offeringId).populate("courseId").session(session);
     if (!offering) fail("Course offering not found", 404);
+    await lockTerm(offering.term, session);
     if (term && term !== offering.term) fail("Term must match the offering");
     if (await Registration.exists({ studentId: student._id, offeringId }).session(session)) fail("Student is already registered for this section", 409);
     const records = await AcademicRecord.find({ studentId: student._id }).populate("courseId").session(session);
@@ -38,6 +60,7 @@ exports.register = async ({ studentId, offeringId, term }) => {
 exports.drop = async id => mongoose.connection.transaction(async session => {
   const registration = await Registration.findById(id).session(session);
   if (!registration) fail("Registration not found", 404);
+  await lockTerm(registration.term, session);
   if (registration.status === "Enrolled") {
     const updated = await Offering.findOneAndUpdate({
       _id: registration.offeringId, enrolled: { $gt: 0 }

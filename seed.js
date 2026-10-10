@@ -4,6 +4,7 @@ const User = require("./models/User");
 const Course = require("./models/Course");
 const Offering = require("./models/Offering");
 const AcademicRecord = require("./models/AcademicRecord");
+const Term = require("./models/Term");
 const Registration = require("./models/Registration");
 
 const TERM = "2026-1";
@@ -41,12 +42,14 @@ async function seed() {
   }
   try {
     await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
-    const models = [User, Course, Offering, AcademicRecord, Registration];
+    const models = [User, Course, Offering, AcademicRecord, Registration, Term];
     const existing = await Promise.all(models.map(model => model.exists({})));
     if (existing.some(Boolean)) {
       throw new Error("Seed requires an empty database. Use a new database in MONGODB_URI; existing data has not been changed.");
     }
     await Promise.all(models.map(model => model.init()));
+
+    await Term.create({ code: TERM, finalized: false });
 
     // create() runs User's save hook so every password is bcrypt hashed.
     await User.create({ name: "System Admin", email: "admin@stamford.edu", password: PASSWORD, role: "admin", studentId: "ADM001", active: true });

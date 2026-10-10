@@ -45,6 +45,7 @@ app.use("/api/me", meRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/offerings", offeringRoutes);
 app.use("/api/registrations", registrationRoutes);
+app.use("/api/terms", require("./routes/terms"));
 
     app.use((req, res) => {
         res.status(404).json({ error: "Route not found" });

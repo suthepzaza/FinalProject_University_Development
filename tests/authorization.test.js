@@ -20,7 +20,7 @@ before(async () => {
   AcademicRecord.find = filter => ({ populate: async () => [{ studentId: String(filter.studentId) }] });
   const app = express();
   app.use(express.json());
-  for (const route of ["auth", "users", "students", "offerings", "registrations", "me"]) {
+  for (const route of ["auth", "users", "students", "offerings", "registrations", "me", "terms"]) {
     app.use(`/api/${route}`, require(`../routes/${route}`));
   }
   server = app.listen(0, "127.0.0.1");
@@ -40,6 +40,8 @@ function request(method, path, role, claims = {}) {
   return fetch(base + path, { method, headers });
 }
 const protectedRoutes = [
+  ["GET", "/api/terms/2026-1", ["student", "admin"]],
+  ["POST", "/api/terms/2026-1/finalize", ["student", "admin"]],
   ["GET", "/api/users", ["student", "advisor"]],
   ["POST", "/api/users", ["student", "advisor"]],
   ["PATCH", `/api/users/${ids.student}`, ["student", "advisor"]],

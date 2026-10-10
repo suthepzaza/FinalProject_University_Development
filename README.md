@@ -64,6 +64,13 @@ and MongoDB transactions keep registration and seat counts consistent.
 Prerequisite checks are excluded because the project document does not require them.
 
 Advisors set the add/drop window and closing date in the section form. Students
+see open/closed status and the closing date. Open windows require a future date
+and close automatically after the deadline (end of the selected day in Bangkok).
+Existing windows without a deadline stay closed until the advisor supplies one.
+The advisor's Finalize term button locks new registrations and removals for the
+selected term on the server and closes its add/drop requests. Finalisation
+requires confirmation and cannot be undone through the dashboard.
+Students
 download the form, complete and sign it, then email their assigned advisor using
 `Add/Drop Request - <Student ID> - <Course Code>`. The advisor updates registration
 manually. The form is in `client/public/add-drop-request-form.pdf`.

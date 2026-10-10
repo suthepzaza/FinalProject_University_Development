@@ -5,6 +5,7 @@ import AcademicHistory from '../components/AcademicHistory';
 const blank = { code: '', title: '', section: '1', day: 'Monday', startTime: '09:00', endTime: '12:00', room: '', instructor: '', seats: 30, addDropOpen: false, addDropClosesAt: '' };
 export default function AdvisorDashboard() {
   const [term, setTerm] = useState('2026-1');
+  const [finalized, setFinalized] = useState(false);
   const [offerings, setOfferings] = useState([]);
   const [students, setStudents] = useState([]);
   const [student, setStudent] = useState('');
@@ -19,8 +20,8 @@ export default function AdvisorDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [offers, people] = await Promise.all([API.get('/offerings', { params: { term } }), API.get('/students')]);
-      setOfferings(offers.data); setStudents(people.data);
+      const [offers, people, status] = await Promise.all([API.get('/offerings', { params: { term } }), API.get('/students'), API.get('/terms/' + term)]);
+      setOfferings(offers.data); setStudents(people.data); setFinalized(status.data.finalized);
       if (student) {
         const [history, eligible, enrolled] = await Promise.all([
           API.get('/students/' + student + '/record'), API.get('/students/' + student + '/eligible', { params: { term } }),
@@ -41,7 +42,7 @@ export default function AdvisorDashboard() {
   async function save(event) {
     event.preventDefault();
     await action(async () => {
-      const data = { ...form, seats: Number(form.seats), term, addDropClosesAt: form.addDropClosesAt || null };
+      const data = { ...form, seats: Number(form.seats), term, addDropClosesAt: form.addDropClosesAt ? form.addDropClosesAt + 'T16:59:59.999Z' : null };
       if (editing) await API.patch('/offerings/' + editing, data);
       else await API.post('/offerings', data);
       setEditing(null); setForm(blank);
@@ -50,6 +51,10 @@ export default function AdvisorDashboard() {
   function field(key) { return { value: form[key], onChange: e => setForm({ ...form, [key]: e.target.value }) }; }
   return <Dashboard title="Advisor dashboard" error={error}>
     <label>Term<input pattern="20[0-9]{2}-[1-3]" value={term} onChange={e => setTerm(e.target.value)} /></label>
+    <p>Registration status: {finalized ? 'Finalized' : 'Open'}</p>
+    <button disabled={finalized || saving || loading} onClick={() => {
+      if (window.confirm('Finalize this term? Further registrations and removals will be blocked.')) action(() => API.post('/terms/' + term + '/finalize'));
+    }}>Finalize term</button>
     <h2>{editing ? 'Edit section' : 'Open a course section'}</h2><form onSubmit={save}>
       <label>Course code<input required disabled={!!editing} {...field('code')} /></label><label>Title<input required disabled={!!editing} {...field('title')} /></label>
       <label>Section<input required {...field('section')} /></label>
@@ -70,11 +75,11 @@ export default function AdvisorDashboard() {
     </tbody></table>
     <h2>Register a student</h2><label>Student<select value={student} onChange={e => setStudent(e.target.value)}><option value="">Select student</option>{students.map(s => <option key={s._id} value={s._id}>{s.name} ({s.studentId})</option>)}</select></label>
     {student && <><AcademicHistory records={records} /><h3>Current registration</h3>
-      <ul>{registrations.map(r => <li key={r._id}>{r.offeringId?.code} Section {r.offeringId?.section} <button disabled={saving} onClick={() => { if (window.confirm('Remove registration?')) action(() => API.delete('/registrations/' + r._id)); }}>Remove</button></li>)}</ul>
+      <ul>{registrations.map(r => <li key={r._id}>{r.offeringId?.code} Section {r.offeringId?.section} <button disabled={saving || finalized || loading} onClick={() => { if (window.confirm('Remove registration?')) action(() => API.delete('/registrations/' + r._id)); }}>Remove</button></li>)}</ul>
       <h3>Course eligibility</h3><table><thead><tr><th>Course</th><th>Section / schedule</th><th>Decision</th><th>Register</th></tr></thead><tbody>
         {[...rules.eligible, ...rules.excluded].map(result => <tr key={result.offering._id} className={result.reason ? 'excluded' : ''}>
           <td>{result.offering.code} ? {result.offering.title}</td><td>{result.offering.section} / {result.offering.day} {result.offering.startTime}?{result.offering.endTime}</td>
-          <td>{result.reason || (result.isRetake ? 'Retake required' : 'Eligible')}</td><td><button disabled={!result.isEligible || saving || loading} onClick={() => action(() => API.post('/registrations', { studentId: student, offeringId: result.offering._id, term }))}>Register</button></td>
+          <td>{result.reason || (result.isRetake ? 'Retake required' : 'Eligible')}</td><td><button disabled={!result.isEligible || saving || loading || finalized} onClick={() => action(() => API.post('/registrations', { studentId: student, offeringId: result.offering._id, term }))}>Register</button></td>
         </tr>)}
       </tbody></table></>}
   </Dashboard>;
