@@ -14,23 +14,3 @@ API.interceptors.request.use((config) => {
 });
 
 export default API;
-
-// Backward-compatibility helpers for existing student manager components
-export async function getStudents() {
-  const res = await API.get('/students');
-  return res.data;
-}
-
-export async function loginUser(email, password) {
-  const res = await API.post('/auth/login', { email, password });
-  return res.data;
-}
-
-export async function createStudent(student) {
-  const res = await API.post('/students', student);
-  return res.data;
-}
-
-export async function deleteStudent(id) {
-  await API.delete(`/students/${id}`);
-}

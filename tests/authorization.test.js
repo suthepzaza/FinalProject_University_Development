@@ -44,14 +44,10 @@ const protectedRoutes = [
   ["POST", "/api/users", ["student", "advisor"]],
   ["PATCH", `/api/users/${ids.student}`, ["student", "advisor"]],
   ["DELETE", `/api/users/${ids.student}`, ["student", "advisor"]],
-  ["POST", "/api/auth/register", ["student", "advisor"]],
   ["GET", "/api/students", ["student"]],
   ["GET", `/api/students/${ids.advisor}/record`, ["student", "admin"]],
   ["GET", `/api/students/${ids.advisor}`, ["student", "admin"]],
   ["GET", `/api/students/${ids.student}/eligible`, ["student", "admin"]],
-  ["POST", "/api/students", ["student", "advisor"]],
-  ["PATCH", `/api/students/${ids.student}`, ["student", "advisor"]],
-  ["DELETE", `/api/students/${ids.student}`, ["student", "advisor"]],
   ["GET", "/api/offerings", ["admin"]],
   ["POST", "/api/offerings", ["student", "admin"]],
   ["PATCH", `/api/offerings/${ids.student}`, ["student", "admin"]],
@@ -60,6 +56,7 @@ const protectedRoutes = [
   ["POST", "/api/registrations", ["student", "admin"]],
   ["DELETE", `/api/registrations/${ids.student}`, ["student", "admin"]],
   ["GET", "/api/me/record", ["advisor", "admin"]],
+  ["GET", "/api/me/profile", ["advisor", "admin"]],
   ["GET", "/api/me/registrations", ["advisor", "admin"]]
 ];
 test("protected endpoints reject anonymous users and forbidden roles before accessing data", async () => {

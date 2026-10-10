@@ -1,13 +1,31 @@
+require("dotenv").config();
+const dns = require("node:dns");
+
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
+const mongoose = require("mongoose");
+const connectDB = async () => {
+
+    try {
+
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log("MongoDB connected");
+
+    } catch (error) {
+
+        console.error("MongoDB connection error:", error.message);
+
+    }
+};
+
 const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
-const connectDB = require("./config/db");
 const meRoutes = require("./routes/me");
 const userRoutes = require("./routes/users");
 const offeringRoutes = require("./routes/offerings");
 const studentRoutes = require("./routes/students");
 const registrationRoutes = require("./routes/registrations");
-const path = require("path");
 
 const app = express();
 const PORT = 3000;
@@ -18,7 +36,7 @@ app.use(express.json());
 app.use(cors());
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "frontpage.html"));
+    res.redirect("http://localhost:5173");
 });
 
 app.use("/api/students", studentRoutes);
