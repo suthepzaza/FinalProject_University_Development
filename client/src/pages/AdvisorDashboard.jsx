@@ -12,7 +12,6 @@ export default function AdvisorDashboard() {
 
   const [activeTab, setActiveTab] = useState('offerings'); // 'offerings' | 'registration'
   const [term, setTerm] = useState('2026-1');
-  const [finalized, setFinalized] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -65,7 +64,6 @@ export default function AdvisorDashboard() {
   useEffect(() => {
     fetchOfferings();
     fetchStudents();
-    fetchTermStatus();
   }, [term]);
 
   const handleLogout = () => {
@@ -84,29 +82,6 @@ export default function AdvisorDashboard() {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to load course offerings');
     } finally {
       setLoadingOfferings(false);
-    }
-  };
-
-  const fetchTermStatus = async () => {
-    try {
-      const res = await API.get(`/terms/${term}`);
-      setFinalized(Boolean(res.data.finalized));
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load term status');
-    }
-  };
-
-  const handleFinalizeTerm = async () => {
-    if (!window.confirm(`Finalize term ${term}? Further registrations and removals will be blocked.`)) return;
-    setError('');
-    setSuccessMessage('');
-    try {
-      await API.post(`/terms/${term}/finalize`);
-      setSuccessMessage(`Term ${term} is now finalized.`);
-      fetchTermStatus();
-      fetchOfferings();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to finalize term');
     }
   };
 
@@ -367,20 +342,6 @@ export default function AdvisorDashboard() {
                   <option value="2026-2" className="text-gray-900">Term 2026-2</option>
                 </select>
               </div>
-
-              {/* Term Finalization */}
-              {finalized ? (
-                <span className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-white/10 border border-white/20 text-amber-200">
-                  Finalized
-                </span>
-              ) : (
-                <button
-                  onClick={handleFinalizeTerm}
-                  className="px-3 py-1.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors shadow-sm"
-                >
-                  Finalize Term
-                </button>
-              )}
 
               {/* Dark Option Toggle */}
               <button
@@ -724,8 +685,7 @@ export default function AdvisorDashboard() {
                             <div className="inline-flex items-center gap-2">
                               <button
                                 onClick={() => off.addDropOpen ? handleCloseCourse(off) : handleOpenCourseClick(off)}
-                                disabled={finalized}
-                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm ${
                                   off.addDropOpen
                                     ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
                                     : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
@@ -907,8 +867,7 @@ export default function AdvisorDashboard() {
                                 <td className="px-4 py-2 text-center">
                                   <button
                                     onClick={() => handleRemoveRegistration(reg._id || reg.id)}
-                                    disabled={finalized}
-                                    className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded transition-colors"
                                   >
                                     Drop
                                   </button>
@@ -1004,8 +963,7 @@ export default function AdvisorDashboard() {
                                     <td className="px-4 py-3 text-center">
                                       <button
                                         onClick={() => handleRegisterStudent(off._id || off.id)}
-                                        disabled={finalized}
-                                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all focus:ring-4 focus:ring-emerald-300"
                                       >
                                         Register
                                       </button>
