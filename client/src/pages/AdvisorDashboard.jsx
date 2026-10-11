@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../api';
-import Dashboard from '../components/Dashboard';
-import AcademicHistory from '../components/AcademicHistory';
-const blank = { code: '', title: '', section: '1', day: 'Monday', startTime: '09:00', endTime: '12:00', room: '', instructor: '', seats: 30, addDropOpen: false, addDropClosesAt: '' };
+
+// Add/drop closes at the end of the chosen day, Bangkok time (UTC+7)
+const closingDateToISO = (date) => date + 'T16:59:59.999Z';
+
 export default function AdvisorDashboard() {
+  const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+  const [activeTab, setActiveTab] = useState('offerings'); // 'offerings' | 'registration'
   const [term, setTerm] = useState('2026-1');
+  const [finalized, setFinalized] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -22,7 +29,8 @@ export default function AdvisorDashboard() {
     endTime: '12:00',
     room: 'Room 401',
     instructor: currentUser.name || 'Dr. Advisor',
-    seats: 30
+    seats: 30,
+    addDropClosesAt: ''
   });
 
   const [students, setStudents] = useState([]);
@@ -35,6 +43,7 @@ export default function AdvisorDashboard() {
   useEffect(() => {
     fetchOfferings();
     fetchStudents();
+    fetchTermStatus();
   }, [term]);
 
   const handleLogout = () => {
@@ -56,15 +65,41 @@ export default function AdvisorDashboard() {
     }
   };
 
+  const fetchTermStatus = async () => {
+    try {
+      const res = await API.get(`/terms/${term}`);
+      setFinalized(Boolean(res.data.finalized));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load term status');
+    }
+  };
+
+  const handleFinalizeTerm = async () => {
+    if (!window.confirm(`Finalize term ${term}? Further registrations and removals will be blocked.`)) return;
+    setError('');
+    setSuccessMessage('');
+    try {
+      await API.post(`/terms/${term}/finalize`);
+      setSuccessMessage(`Term ${term} is now finalized.`);
+      fetchTermStatus();
+      fetchOfferings();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to finalize term');
+    }
+  };
+
   const handleCreateOffering = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
     try {
+      const { addDropClosesAt, ...offering } = newOffering;
       await API.post('/offerings', {
-        ...newOffering,
+        ...offering,
         term,
-        seats: Number(newOffering.seats)
+        seats: Number(newOffering.seats),
+        addDropOpen: Boolean(addDropClosesAt),
+        addDropClosesAt: addDropClosesAt ? closingDateToISO(addDropClosesAt) : undefined
       });
       setSuccessMessage(`Opened section ${newOffering.section} for ${newOffering.code} successfully.`);
       setShowAddOfferingModal(false);
@@ -77,7 +112,8 @@ export default function AdvisorDashboard() {
         endTime: '12:00',
         room: 'Room 401',
         instructor: currentUser.name || 'Dr. Advisor',
-        seats: 30
+        seats: 30,
+        addDropClosesAt: ''
       });
       fetchOfferings();
     } catch (err) {
@@ -91,7 +127,21 @@ export default function AdvisorDashboard() {
     try {
       const offeringId = offering._id || offering.id;
       const newStatus = !offering.addDropOpen;
-      await API.patch(`/offerings/${offeringId}`, { addDropOpen: newStatus });
+      const update = { addDropOpen: newStatus };
+      if (newStatus) {
+        // The backend requires a future closing date for an open window
+        const closesOn = window.prompt(
+          'Add/Drop closes on (YYYY-MM-DD):',
+          offering.addDropClosesAt?.slice(0, 10) || ''
+        );
+        if (!closesOn) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(closesOn)) {
+          setError('Enter the closing date as YYYY-MM-DD.');
+          return;
+        }
+        update.addDropClosesAt = closingDateToISO(closesOn);
+      }
+      await API.patch(`/offerings/${offeringId}`, update);
       setSuccessMessage(`Add/Drop window for ${offering.courseId?.code || offering.code || 'course'} is now ${newStatus ? 'OPEN' : 'CLOSED'}.`);
       fetchOfferings();
     } catch (err) {
@@ -114,15 +164,10 @@ export default function AdvisorDashboard() {
 
   const fetchStudents = async () => {
     try {
-      const res = await API.get('/users?role=student');
+      const res = await API.get('/students');
       setStudents(res.data);
     } catch (err) {
-      try {
-        const fallbackRes = await API.get('/students');
-        setStudents(fallbackRes.data);
-      } catch (e) {
-        console.error('Failed to load students list', e);
-      }
+      console.error('Failed to load students list', err);
     }
   };
 
@@ -218,7 +263,7 @@ export default function AdvisorDashboard() {
 
   // Metrics
   const totalCapacity = offerings.reduce((sum, o) => sum + (o.seats || 30), 0);
-  const totalTakenSeats = offerings.reduce((sum, o) => sum + (o.seatsTaken || 0), 0);
+  const totalTakenSeats = offerings.reduce((sum, o) => sum + (o.enrolled || 0), 0);
   const openWindowsCount = offerings.filter(o => o.addDropOpen).length;
 
   // Filter offerings
@@ -273,6 +318,20 @@ export default function AdvisorDashboard() {
                   <option value="2026-2" className="text-gray-900">Term 2026-2</option>
                 </select>
               </div>
+
+              {/* Term Finalization */}
+              {finalized ? (
+                <span className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-white/10 border border-white/20 text-amber-200">
+                  Finalized
+                </span>
+              ) : (
+                <button
+                  onClick={handleFinalizeTerm}
+                  className="px-3 py-1.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors shadow-sm"
+                >
+                  Finalize Term
+                </button>
+              )}
 
               {/* Current User Pill */}
               <div className="hidden md:flex items-center space-x-3 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
@@ -526,7 +585,7 @@ export default function AdvisorDashboard() {
                       const courseCode = off.courseId?.code || off.code;
                       const courseTitle = off.courseId?.title || off.title;
                       const seatsTotal = off.seats || 30;
-                      const seatsTaken = off.seatsTaken || 0;
+                      const seatsTaken = off.enrolled || 0;
                       const seatsRemaining = seatsTotal - seatsTaken;
                       const isFull = seatsRemaining <= 0;
 
@@ -579,12 +638,18 @@ export default function AdvisorDashboard() {
                                 Window Closed
                               </span>
                             )}
+                            {off.addDropClosesAt && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Closes {off.addDropClosesAt.slice(0, 10)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="inline-flex items-center gap-2">
                               <button
                                 onClick={() => handleToggleAddDrop(off)}
-                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm ${
+                                disabled={finalized}
+                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                                   off.addDropOpen
                                     ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
                                     : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
@@ -766,7 +831,8 @@ export default function AdvisorDashboard() {
                                 <td className="px-4 py-2 text-center">
                                   <button
                                     onClick={() => handleRemoveRegistration(reg._id || reg.id)}
-                                    className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded transition-colors"
+                                    disabled={finalized}
+                                    className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     Drop
                                   </button>
@@ -829,7 +895,7 @@ export default function AdvisorDashboard() {
                                 const off = item.offering || item;
                                 const courseCode = off.courseId?.code || off.code;
                                 const courseTitle = off.courseId?.title || off.title;
-                                const seatsRemaining = (off.seats || 30) - (off.seatsTaken || 0);
+                                const seatsRemaining = (off.seats || 30) - (off.enrolled || 0);
 
                                 return (
                                   <tr
@@ -862,7 +928,8 @@ export default function AdvisorDashboard() {
                                     <td className="px-4 py-3 text-center">
                                       <button
                                         onClick={() => handleRegisterStudent(off._id || off.id)}
-                                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all focus:ring-4 focus:ring-emerald-300"
+                                        disabled={finalized}
+                                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         Register
                                       </button>
@@ -1113,6 +1180,21 @@ export default function AdvisorDashboard() {
                     className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-xs font-medium text-gray-900 dark:text-white">
+                  Add/Drop Closes On
+                </label>
+                <input
+                  type="date"
+                  value={newOffering.addDropClosesAt}
+                  onChange={(e) => setNewOffering({ ...newOffering, addDropClosesAt: e.target.value })}
+                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Leave empty to keep the add/drop window closed.
+                </p>
               </div>
 
               {/* Modal Actions */}

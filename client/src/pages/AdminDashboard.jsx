@@ -1,27 +1,226 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../api';
-import Dashboard from '../components/Dashboard';
-const blank = { name: '', email: '', role: 'student', studentId: '', password: '', advisorId: '', active: true };
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
   const [users, setUsers] = useState([]);
-  const [role, setRole] = useState('all');
-  const [form, setForm] = useState(blank);
-  const [editing, setEditing] = useState(null);
-  const [error, setError] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const load = useCallback(async () => {
-    try { setUsers((await API.get('/users')).data); }
-    catch (error) { setError(error.response?.data?.error || 'Failed to load users'); }
-    finally { setLoading(false); }
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Pagination state (Flowbite table footer pattern)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Drawer & Modal states
+  const [showCreateDrawer, setShowCreateDrawer] = useState(false);
+  const [showEditDrawer, setShowEditDrawer] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Form states
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: 'student',
+    studentId: '',
+    password: '',
+    active: true
+  });
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // Fetch all users
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await API.get('/users');
+      setUsers(res.data);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
   }, []);
-  useEffect(() => { Promise.resolve().then(load); }, [load]);
-  function field(key) { return { value: form[key], onChange: e => setForm({ ...form, [key]: e.target.value }) }; }
-  async function save(event) {
-    event.preventDefault(); setError(''); setSaving(true);
-    const data = { ...form, advisorId: form.role === 'student' ? form.advisorId || null : null };
-    if (!data.password) delete data.password;
-    if (data.role !== 'student') delete data.studentId;
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterRole, searchQuery]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  // Filtered users list
+  const filteredUsers = users.filter((u) => {
+    const matchesRole = filterRole === 'all' || u.role === filterRole;
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !query ||
+      (u.name && u.name.toLowerCase().includes(query)) ||
+      (u.email && u.email.toLowerCase().includes(query)) ||
+      (u.studentId && u.studentId.toLowerCase().includes(query));
+    return matchesRole && matchesSearch;
+  });
+
+  // Pagination calculations
+  const totalUsers = filteredUsers.length;
+  const totalPages = Math.ceil(totalUsers / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalUsers);
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+  // Stats calculation for dashboard overview
+  const adminCount = users.filter((u) => u.role === 'admin').length;
+  const advisorCount = users.filter((u) => u.role === 'advisor').length;
+  const studentCount = users.filter((u) => u.role === 'student').length;
+  const activeCount = users.filter((u) => u.active !== false).length;
+
+  // Open Create Drawer
+  const openCreateDrawer = () => {
+    setFormData({
+      name: '',
+      email: '',
+      role: 'student',
+      studentId: '',
+      password: '',
+      active: true
+    });
+    setError('');
+    setSuccessMessage('');
+    setShowCreateDrawer(true);
+  };
+
+  // Submit Create
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMessage('');
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        password: formData.password,
+        active: formData.active
+      };
+      if (formData.role === 'student') {
+        payload.studentId = formData.studentId;
+      }
+      await API.post('/users', payload);
+      setSuccessMessage('User account created successfully.');
+      setShowCreateDrawer(false);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create user');
+    }
+  };
+
+  // Open Edit Drawer
+  const openEditDrawer = (user) => {
+    setSelectedUser(user);
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'student',
+      studentId: user.studentId || '',
+      password: '',
+      active: user.active !== false
+    });
+    setError('');
+    setSuccessMessage('');
+    setShowEditDrawer(true);
+  };
+
+  // Submit Edit
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    setError('');
+    setSuccessMessage('');
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        active: formData.active
+      };
+      if (formData.role === 'student') {
+        payload.studentId = formData.studentId;
+      }
+      if (formData.password) {
+        payload.password = formData.password;
+      }
+      await API.patch(`/users/${selectedUser._id || selectedUser.id}`, payload);
+      setSuccessMessage('User details updated successfully.');
+      setShowEditDrawer(false);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to update user');
+    }
+  };
+
+  // Open Delete Modal
+  const openDeleteModal = (user) => {
+    setSelectedUser(user);
+    setError('');
+    setSuccessMessage('');
+    setShowDeleteModal(true);
+  };
+
+  // Submit Delete with rubric constraints
+  const handleDeleteSubmit = async () => {
+    if (!selectedUser) return;
+    const userId = selectedUser._id || selectedUser.id;
+    const currentId = currentUser._id || currentUser.id;
+
+    // Check 1: Cannot delete own account
+    if (userId === currentId || selectedUser.email === currentUser.email) {
+      setError('Action blocked: You cannot delete your own admin account.');
+      setShowDeleteModal(false);
+      return;
+    }
+
+    // Check 2: Cannot leave system with zero admins
+    if (selectedUser.role === 'admin' && adminCount <= 1) {
+      setError('Action blocked: System must never be left with zero administrators.');
+      setShowDeleteModal(false);
+      return;
+    }
+
+    try {
+      await API.delete(`/users/${userId}`);
+      setSuccessMessage(`User "${selectedUser.name || selectedUser.email}" deleted successfully.`);
+      setShowDeleteModal(false);
+      setShowEditDrawer(false);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to delete user');
+      setShowDeleteModal(false);
+    }
+  };
+
+  // Toggle user active status
+  const handleToggleActive = async (user) => {
+    const userId = user._id || user.id;
+    const newStatus = !(user.active !== false);
     try {
       await API.patch(`/users/${userId}`, { active: newStatus });
       fetchUsers();
