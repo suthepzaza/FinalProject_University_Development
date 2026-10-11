@@ -1,22 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import API from '../api';
-
+import Dashboard from '../components/Dashboard';
+import AcademicHistory from '../components/AcademicHistory';
 export default function StudentDashboard() {
-  const navigate = useNavigate();
+  const [term, setTerm] = useState('2026-1');
   const [registrations, setRegistrations] = useState([]);
-  const [record, setRecord] = useState([]);
-  const [selectedOffering, setSelectedOffering] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'registrations' | 'record'
-  const [searchQuery, setSearchQuery] = useState('');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
+  const [records, setRecords] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [request, setRequest] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     async function fetchData() {
       try {

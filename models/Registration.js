@@ -14,14 +14,16 @@ const registrationSchema = new mongoose.Schema({
   term: {
     type: String,
     required: true,
-    default: "2026-1"
+    default: "2026-1",
+    match: require("./validation").term
   },
   status: {
     type: String,
-    enum: ["Enrolled", "Dropped", "Pending"],
+    enum: ["Enrolled", "Dropped"],
     default: "Enrolled"
   }
 }, { timestamps: true });
 
+registrationSchema.index({ studentId: 1, offeringId: 1 }, { unique: true });
 module.exports = mongoose.model("Registration", registrationSchema);
 

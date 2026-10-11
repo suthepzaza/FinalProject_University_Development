@@ -1,12 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
 import API from '../api';
-
+import Dashboard from '../components/Dashboard';
+import AcademicHistory from '../components/AcademicHistory';
+const blank = { code: '', title: '', section: '1', day: 'Monday', startTime: '09:00', endTime: '12:00', room: '', instructor: '', seats: 30, addDropOpen: false, addDropClosesAt: '' };
 export default function AdvisorDashboard() {
-  const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-
-  const [activeTab, setActiveTab] = useState('offerings'); // 'offerings' | 'registration'
   const [term, setTerm] = useState('2026-1');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');

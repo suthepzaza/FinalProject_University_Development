@@ -1,56 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api';
-
-// Helper to get registered accounts list from localStorage
-function getStoredUsers() {
-  try {
-    const raw = localStorage.getItem('registered_users');
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error reading registered users', e);
-  }
-  // Default test accounts per course specification (Section 10)
-  return [
-    {
-      name: 'System Admin',
-      email: 'admin@stamford.edu',
-      password: 'password123',
-      role: 'admin',
-      studentId: 'ADM001'
-    },
-    {
-      name: 'Dr. Advisor',
-      email: 'advisor@stamford.edu',
-      password: 'password123',
-      role: 'advisor',
-      studentId: 'ADV001'
-    }
-  ];
-}
-
-// Helper to save a new user to registered list
-function saveStoredUser(newUser) {
-  const users = getStoredUsers();
-  const existingIdx = users.findIndex(
-    (u) => u.email.toLowerCase() === newUser.email.toLowerCase()
-  );
-  if (existingIdx >= 0) {
-    users[existingIdx] = newUser;
-  } else {
-    users.push(newUser);
-  }
-  localStorage.setItem('registered_users', JSON.stringify(users));
-}
-
-export default function LoginPage({ initialSignUp = false }) {
-  const [isSignUp, setIsSignUp] = useState(initialSignUp);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState(() => localStorage.getItem('remembered_email') || '');
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 

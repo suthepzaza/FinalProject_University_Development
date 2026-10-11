@@ -16,18 +16,12 @@ const courseSchema = new mongoose.Schema({
   credits: {
     type: Number,
     required: true,
-    default: 3
+    default: 3,
+    min: 1,
+    max: 6,
+    validate: Number.isInteger
   },
-  prerequisites: [
-    {
-      type: String, // Course codes e.g. ["ITE101"]
-      trim: true
-    }
-  ],
-  department: {
-    type: String,
-    default: "Computer Science"
-  }
+  description: { type: String, trim: true, default: "" },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Course", courseSchema);

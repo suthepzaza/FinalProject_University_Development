@@ -5,6 +5,7 @@ const userSchema = new mongoose.Schema(
     {
         name: {
             type: String,
+            required: true,
             trim: true
         },
 
@@ -30,8 +31,10 @@ const userSchema = new mongoose.Schema(
 
         studentId: {
             type: String,
-            trim: true
+            trim: true,
+            required: function () { return this.role === "student"; }
         },
+        advisorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
         active: {
             type: Boolean,
@@ -43,6 +46,13 @@ const userSchema = new mongoose.Schema(
     }
 );
 
+userSchema.index({ studentId: 1 }, { unique: true, partialFilterExpression: { studentId: { $type: "string" } } });
+userSchema.pre("validate", async function () {
+    if (this.advisorId && this.isModified("advisorId")) {
+        const advisor = await this.constructor.findOne({ _id: this.advisorId, role: "advisor", active: true });
+        if (!advisor) this.invalidate("advisorId", "Advisor must be an active advisor account");
+    }
+});
 userSchema.pre("save", async function () {
     if (!this.isModified("password")) {
         return;

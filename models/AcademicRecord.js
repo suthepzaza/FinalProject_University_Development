@@ -13,11 +13,12 @@ const academicRecordSchema = new mongoose.Schema({
   },
   term: {
     type: String,
-    required: true
+    required: true,
+    match: require("./validation").term
   },
   grade: {
     type: String,
-    enum: ["A", "B+", "B", "C+", "C", "D+", "D", "F", "W", "IP"],
+    enum: ["A", "B+", "B", "C+", "C", "D+", "D", "F", "W"],
     required: true
   }
 }, { timestamps: true });
