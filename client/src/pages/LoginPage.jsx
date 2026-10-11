@@ -88,9 +88,6 @@ export default function LoginPage({ initialSignUp = false }) {
     }
 
     if (isSignUp) {
-      // ==========================================
-      // SIGN UP FLOW
-      // ==========================================
       // 1. Check local list for duplicates
       const storedUsers = getStoredUsers();
       if (storedUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
@@ -157,9 +154,6 @@ export default function LoginPage({ initialSignUp = false }) {
 
       setLoading(false);
     } else {
-      // ==========================================
-      // LOGIN FLOW (STRICT VALIDATION)
-      // ==========================================
       let loginSuccess = false;
 
       // 1. First try Live Backend if reachable

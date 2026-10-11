@@ -240,9 +240,9 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#122666] text-slate-100 font-sans antialiased">
+    <div className="min-h-screen bg-[#B52709] text-slate-100 font-sans antialiased">
       {/* Top Navbar Header */}
-      <header className="border-b border-slate-700/60 bg-[#0d1c4f]/80 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+      <header className="border-b border-red-950/30 bg-[#801905]/85 backdrop-blur-md sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding & Title */}
@@ -726,9 +726,6 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* ======================================================== */}
-      {/* FLOWBITE CREATE USER DRAWER (Slide-over from right)     */}
-      {/* ======================================================== */}
       {showCreateDrawer && (
         <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
           {/* Backdrop */}
@@ -880,9 +877,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* FLOWBITE UPDATE USER DRAWER (Slide-over from right)     */}
-      {/* ======================================================== */}
       {showEditDrawer && selectedUser && (
         <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
           {/* Backdrop */}
@@ -1041,9 +1035,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* FLOWBITE DELETE CONFIRMATION MODAL                       */}
-      {/* ======================================================== */}
       {showDeleteModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto bg-gray-900/60 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl text-center border border-gray-200 dark:border-gray-700">

@@ -67,9 +67,9 @@ export default function StudentDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-[#122666] text-slate-100 font-sans antialiased">
+    <div className="min-h-screen bg-[#B52709] text-slate-100 font-sans antialiased">
       {/* Top Navbar Header */}
-      <header className="border-b border-slate-700/60 bg-[#0d1c4f]/80 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+      <header className="border-b border-red-950/30 bg-[#801905]/85 backdrop-blur-md sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding & Title */}
@@ -245,7 +245,6 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* SECTION 1: CURRENT TERM REGISTRATIONS */}
         {(activeTab === 'all' || activeTab === 'registrations') && (
           <div className="bg-white dark:bg-gray-800 relative shadow-xl sm:rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
             {/* Header / Title Bar */}
@@ -369,7 +368,6 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* SECTION 2: ACADEMIC RECORD / TRANSCRIPT */}
         {(activeTab === 'all' || activeTab === 'record') && (
           <div className="bg-white dark:bg-gray-800 relative shadow-xl sm:rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
             {/* Header / Title Bar */}
@@ -478,7 +476,7 @@ export default function StudentDashboard() {
         )}
       </main>
 
-      {/* FLOWBITE ADD/DROP REQUEST MODAL */}
+      {/* Add/Drop request modal */}
       {selectedOffering && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-lg w-full p-6 space-y-5 animate-scale-up">

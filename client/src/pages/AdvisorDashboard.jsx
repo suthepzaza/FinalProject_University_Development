@@ -11,9 +11,6 @@ export default function AdvisorDashboard() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // ==========================================
-  // TAB 1: OFFERINGS STATE
-  // ==========================================
   const [offerings, setOfferings] = useState([]);
   const [loadingOfferings, setLoadingOfferings] = useState(false);
   const [showAddOfferingModal, setShowAddOfferingModal] = useState(false);
@@ -31,9 +28,6 @@ export default function AdvisorDashboard() {
     seats: 30
   });
 
-  // ==========================================
-  // TAB 2: STUDENT REGISTRATION & RULES STATE
-  // ==========================================
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [studentRecord, setStudentRecord] = useState([]);
@@ -41,9 +35,6 @@ export default function AdvisorDashboard() {
   const [eligibilityData, setEligibilityData] = useState({ eligible: [], excluded: [] });
   const [loadingStudentData, setLoadingStudentData] = useState(false);
 
-  // ------------------------------------------
-  // INITIAL LOAD
-  // ------------------------------------------
   useEffect(() => {
     fetchOfferings();
     fetchStudents();
@@ -55,9 +46,6 @@ export default function AdvisorDashboard() {
     navigate('/login');
   };
 
-  // ------------------------------------------
-  // OFFERINGS API CALLS
-  // ------------------------------------------
   const fetchOfferings = async () => {
     try {
       setLoadingOfferings(true);
@@ -127,9 +115,6 @@ export default function AdvisorDashboard() {
     }
   };
 
-  // ------------------------------------------
-  // REGISTRATION & RULES ENGINE API CALLS
-  // ------------------------------------------
   const fetchStudents = async () => {
     try {
       const res = await API.get('/users?role=student');
@@ -253,9 +238,9 @@ export default function AdvisorDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-[#122666] text-slate-100 font-sans antialiased">
+    <div className="min-h-screen bg-[#B52709] text-slate-100 font-sans antialiased">
       {/* Top Navbar Header */}
-      <header className="border-b border-slate-700/60 bg-[#0d1c4f]/80 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+      <header className="border-b border-red-950/30 bg-[#801905]/85 backdrop-blur-md sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding & Title */}
@@ -440,9 +425,6 @@ export default function AdvisorDashboard() {
           </button>
         </div>
 
-        {/* ======================================================== */}
-        {/* TAB 1: COURSE OFFERINGS MANAGEMENT                       */}
-        {/* ======================================================== */}
         {activeTab === 'offerings' && (
           <div className="bg-white dark:bg-gray-800 relative shadow-xl sm:rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
             {/* Flowbite Action Toolbar */}
@@ -635,9 +617,6 @@ export default function AdvisorDashboard() {
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TAB 2: STUDENT REGISTRATION & RULES ENGINE               */}
-        {/* ======================================================== */}
         {activeTab === 'registration' && (
           <div className="space-y-6">
             {/* Student Selector Card */}
@@ -976,7 +955,7 @@ export default function AdvisorDashboard() {
         )}
       </main>
 
-      {/* CREATE OFFERING FLOWBITE MODAL */}
+      {/* Add offering modal */}
       {showAddOfferingModal && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-lg w-full p-6 space-y-4 animate-scale-up">
