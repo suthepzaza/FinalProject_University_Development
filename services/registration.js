@@ -20,8 +20,10 @@ exports.finalize = async code => mongoose.connection.transaction(async session =
 exports.addDropStatus = async offering => {
   const term = await Term.findOne({ code: offering.term });
   const result = offering.toObject ? offering.toObject() : { ...offering };
-  result.addDropOpen = Boolean(offering.addDropOpen && offering.addDropClosesAt &&
-    new Date(offering.addDropClosesAt) > new Date() && !term?.finalized);
+  const now = new Date();
+  const isOpenByDates = (!offering.addDropOpensAt || new Date(offering.addDropOpensAt) <= now) &&
+    (!offering.addDropClosesAt || new Date(offering.addDropClosesAt) > now);
+  result.addDropOpen = Boolean(offering.addDropOpen && isOpenByDates && !term?.finalized);
   return result;
 };
 function fail(message, status = 400) { const error = new Error(message); error.status = status; throw error; }

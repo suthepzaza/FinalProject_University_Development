@@ -4,6 +4,7 @@ import API from '../api';
 
 // Add/drop closes at the end of the chosen day, Bangkok time (UTC+7)
 const closingDateToISO = (date) => date + 'T16:59:59.999Z';
+const openingDateToISO = (date) => date + 'T00:00:00.000+07:00';
 
 export default function AdvisorDashboard() {
   const navigate = useNavigate();
@@ -15,9 +16,29 @@ export default function AdvisorDashboard() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('theme') === 'dark' || document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDark]);
+
   const [offerings, setOfferings] = useState([]);
   const [loadingOfferings, setLoadingOfferings] = useState(false);
   const [showAddOfferingModal, setShowAddOfferingModal] = useState(false);
+  const [openCourseModal, setOpenCourseModal] = useState({
+    isOpen: false,
+    offering: null,
+    opensAt: '',
+    closesAt: ''
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'open' | 'closed'
   const [newOffering, setNewOffering] = useState({
@@ -30,6 +51,7 @@ export default function AdvisorDashboard() {
     room: 'Room 401',
     instructor: currentUser.name || 'Dr. Advisor',
     seats: 30,
+    addDropOpensAt: '',
     addDropClosesAt: ''
   });
 
@@ -93,12 +115,13 @@ export default function AdvisorDashboard() {
     setError('');
     setSuccessMessage('');
     try {
-      const { addDropClosesAt, ...offering } = newOffering;
+      const { addDropOpensAt, addDropClosesAt, ...offering } = newOffering;
       await API.post('/offerings', {
         ...offering,
         term,
         seats: Number(newOffering.seats),
         addDropOpen: Boolean(addDropClosesAt),
+        addDropOpensAt: addDropOpensAt ? openingDateToISO(addDropOpensAt) : undefined,
         addDropClosesAt: addDropClosesAt ? closingDateToISO(addDropClosesAt) : undefined
       });
       setSuccessMessage(`Opened section ${newOffering.section} for ${newOffering.code} successfully.`);
@@ -113,6 +136,7 @@ export default function AdvisorDashboard() {
         room: 'Room 401',
         instructor: currentUser.name || 'Dr. Advisor',
         seats: 30,
+        addDropOpensAt: '',
         addDropClosesAt: ''
       });
       fetchOfferings();
@@ -121,31 +145,56 @@ export default function AdvisorDashboard() {
     }
   };
 
-  const handleToggleAddDrop = async (offering) => {
+  const handleOpenCourseClick = (offering) => {
+    setError('');
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const defaultClose = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setOpenCourseModal({
+      isOpen: true,
+      offering,
+      opensAt: offering.addDropOpensAt ? offering.addDropOpensAt.slice(0, 10) : todayStr,
+      closesAt: offering.addDropClosesAt ? offering.addDropClosesAt.slice(0, 10) : defaultClose
+    });
+  };
+
+  const handleConfirmOpenCourse = async (e) => {
+    e.preventDefault();
+    if (!openCourseModal.offering) return;
+    if (!openCourseModal.opensAt || !openCourseModal.closesAt) {
+      setError('Please select both an open date and a close date.');
+      return;
+    }
+    if (openCourseModal.opensAt > openCourseModal.closesAt) {
+      setError('Course close date must be on or after the open date.');
+      return;
+    }
+    try {
+      const offeringId = openCourseModal.offering._id || openCourseModal.offering.id;
+      await API.patch(`/offerings/${offeringId}`, {
+        addDropOpen: true,
+        addDropOpensAt: openingDateToISO(openCourseModal.opensAt),
+        addDropClosesAt: closingDateToISO(openCourseModal.closesAt)
+      });
+      setSuccessMessage(`Course ${openCourseModal.offering.courseId?.code || openCourseModal.offering.code || ''} is now OPEN.`);
+      setOpenCourseModal({ isOpen: false, offering: null, opensAt: '', closesAt: '' });
+      fetchOfferings();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to open course');
+    }
+  };
+
+  const handleCloseCourse = async (offering) => {
     setError('');
     setSuccessMessage('');
     try {
       const offeringId = offering._id || offering.id;
-      const newStatus = !offering.addDropOpen;
-      const update = { addDropOpen: newStatus };
-      if (newStatus) {
-        // The backend requires a future closing date for an open window
-        const closesOn = window.prompt(
-          'Add/Drop closes on (YYYY-MM-DD):',
-          offering.addDropClosesAt?.slice(0, 10) || ''
-        );
-        if (!closesOn) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(closesOn)) {
-          setError('Enter the closing date as YYYY-MM-DD.');
-          return;
-        }
-        update.addDropClosesAt = closingDateToISO(closesOn);
-      }
-      await API.patch(`/offerings/${offeringId}`, update);
-      setSuccessMessage(`Add/Drop window for ${offering.courseId?.code || offering.code || 'course'} is now ${newStatus ? 'OPEN' : 'CLOSED'}.`);
+      await API.patch(`/offerings/${offeringId}`, {
+        addDropOpen: false
+      });
+      setSuccessMessage(`Course ${offering.courseId?.code || offering.code || ''} is now CLOSED.`);
       fetchOfferings();
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to update Add/Drop status');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to close course');
     }
   };
 
@@ -280,9 +329,9 @@ export default function AdvisorDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-[#B52709] text-slate-100 font-sans antialiased">
+    <div className={`min-h-screen ${isDark ? 'bg-[#140413]' : 'bg-[#6D1E61]'} text-slate-100 font-sans antialiased transition-colors duration-200`}>
       {/* Top Navbar Header */}
-      <header className="border-b border-red-950/30 bg-[#801905]/85 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+      <header className={`border-b ${isDark ? 'border-purple-950/60 bg-[#1e071c]/90' : 'border-purple-950/30 bg-[#4E1546]/85'} backdrop-blur-md sticky top-0 z-30 shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding & Title */}
@@ -332,6 +381,30 @@ export default function AdvisorDashboard() {
                   Finalize Term
                 </button>
               )}
+
+              {/* Dark Option Toggle */}
+              <button
+                onClick={() => setIsDark(!isDark)}
+                type="button"
+                className="p-2 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors flex items-center gap-1.5 border border-white/10"
+                title="Toggle Dark Option"
+              >
+                {isDark ? (
+                  <>
+                    <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fillRule="evenodd" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs font-semibold hidden sm:inline">Light</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                    </svg>
+                    <span className="text-xs font-semibold hidden sm:inline">Dark</span>
+                  </>
+                )}
+              </button>
 
               {/* Current User Pill */}
               <div className="hidden md:flex items-center space-x-3 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
@@ -407,9 +480,9 @@ export default function AdvisorDashboard() {
 
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Add/Drop Windows</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Open Courses</p>
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{openWindowsCount}</h3>
-              <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">Sections currently open</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">Courses currently open</p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -518,9 +591,9 @@ export default function AdvisorDashboard() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 transition-colors cursor-pointer"
                   >
-                    <option value="all">All Windows</option>
-                    <option value="open">Window Open ({openWindowsCount})</option>
-                    <option value="closed">Window Closed ({offerings.length - openWindowsCount})</option>
+                    <option value="all">All Courses</option>
+                    <option value="open">Open Course ({openWindowsCount})</option>
+                    <option value="closed">Closed Course ({offerings.length - openWindowsCount})</option>
                   </select>
                 </div>
               </div>
@@ -630,24 +703,27 @@ export default function AdvisorDashboard() {
                             {off.addDropOpen ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                Window Open
+                                Open Course
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                Window Closed
+                                Closed Course
                               </span>
                             )}
-                            {off.addDropClosesAt && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Closes {off.addDropClosesAt.slice(0, 10)}
-                              </div>
-                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
+                              {off.addDropOpensAt && (
+                                <div>Opens {off.addDropOpensAt.slice(0, 10)}</div>
+                              )}
+                              {off.addDropClosesAt && (
+                                <div>Closes {off.addDropClosesAt.slice(0, 10)}</div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="inline-flex items-center gap-2">
                               <button
-                                onClick={() => handleToggleAddDrop(off)}
+                                onClick={() => off.addDropOpen ? handleCloseCourse(off) : handleOpenCourseClick(off)}
                                 disabled={finalized}
                                 className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                                   off.addDropOpen
@@ -655,7 +731,7 @@ export default function AdvisorDashboard() {
                                     : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
                                 }`}
                               >
-                                {off.addDropOpen ? 'Close Window' : 'Open Window'}
+                                {off.addDropOpen ? 'Close Course' : 'Open Course'}
                               </button>
                               <button
                                 onClick={() => handleDeleteOffering(off._id || off.id)}
@@ -1182,20 +1258,33 @@ export default function AdvisorDashboard() {
                 </div>
               </div>
 
-              <div>
-                <label className="block mb-1 text-xs font-medium text-gray-900 dark:text-white">
-                  Add/Drop Closes On
-                </label>
-                <input
-                  type="date"
-                  value={newOffering.addDropClosesAt}
-                  onChange={(e) => setNewOffering({ ...newOffering, addDropClosesAt: e.target.value })}
-                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Leave empty to keep the add/drop window closed.
-                </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-900 dark:text-white">
+                    Course Opens On
+                  </label>
+                  <input
+                    type="date"
+                    value={newOffering.addDropOpensAt}
+                    onChange={(e) => setNewOffering({ ...newOffering, addDropOpensAt: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-900 dark:text-white">
+                    Course Closes On
+                  </label>
+                  <input
+                    type="date"
+                    value={newOffering.addDropClosesAt}
+                    onChange={(e) => setNewOffering({ ...newOffering, addDropClosesAt: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                Leave empty to create the course as closed.
+              </p>
 
               {/* Modal Actions */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -1211,6 +1300,97 @@ export default function AdvisorDashboard() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm focus:ring-4 focus:ring-blue-300 transition-all"
                 >
                   <span>Open Offering</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Open Course date selection modal */}
+      {openCourseModal.isOpen && openCourseModal.offering && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+                  📅
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Open Course
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Select enrollment open and close dates
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenCourseModal({ isOpen: false, offering: null, opensAt: '', closesAt: '' })}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg p-1.5 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl text-xs space-y-1">
+              <div className="font-semibold text-blue-900 dark:text-blue-200">
+                {openCourseModal.offering.courseId?.code || openCourseModal.offering.code} — {openCourseModal.offering.courseId?.title || openCourseModal.offering.title}
+              </div>
+              <div className="text-blue-700 dark:text-blue-300">
+                Section {openCourseModal.offering.section || '1'} • {openCourseModal.offering.day} {openCourseModal.offering.startTime} - {openCourseModal.offering.endTime}
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmOpenCourse} className="space-y-4">
+              <div>
+                <label className="block mb-1 text-xs font-semibold text-gray-900 dark:text-white">
+                  Open Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={openCourseModal.opensAt}
+                  onChange={(e) => setOpenCourseModal({ ...openCourseModal, opensAt: e.target.value })}
+                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  Date when students can start registering for this course.
+                </p>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-xs font-semibold text-gray-900 dark:text-white">
+                  Close Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={openCourseModal.closesAt}
+                  onChange={(e) => setOpenCourseModal({ ...openCourseModal, closesAt: e.target.value })}
+                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                />
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  Date when course registration closes.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setOpenCourseModal({ isOpen: false, offering: null, opensAt: '', closesAt: '' })}
+                  className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm focus:ring-4 focus:ring-emerald-300 transition-all"
+                >
+                  <span>Open Course</span>
                 </button>
               </div>
             </form>

@@ -18,7 +18,7 @@ exports.list = async (req, res) => {
 // POST /api/offerings - Create offering (Advisor)
 exports.create = async (req, res) => {
   try {
-    const { code, title, section, term, day, startTime, endTime, room, instructor, seats, addDropOpen, addDropClosesAt } = req.body;
+    const { code, title, section, term, day, startTime, endTime, room, instructor, seats, addDropOpen, addDropOpensAt, addDropClosesAt } = req.body;
     let course = await Course.findOne({ code: code.toUpperCase() });
     if (!course) {
       course = await Course.create({
@@ -41,6 +41,7 @@ exports.create = async (req, res) => {
       instructor: instructor || "Dr. Smith",
       seats: seats === undefined ? 30 : Number(seats),
       addDropOpen: addDropOpen === true,
+      addDropOpensAt: addDropOpensAt || undefined,
       addDropClosesAt: addDropClosesAt || undefined,
       advisorEmail: req.user.email
     });
@@ -57,7 +58,7 @@ exports.update = async (req, res) => {
     const updated = await mongoose.connection.transaction(async session => {
       const offering = await Offering.findById(req.params.id).session(session);
       if (!offering) { const error = new Error("Offering not found"); error.status = 404; throw error; }
-      for (const key of ["section", "day", "startTime", "endTime", "room", "instructor", "seats", "addDropOpen", "addDropClosesAt"]) {
+      for (const key of ["section", "day", "startTime", "endTime", "room", "instructor", "seats", "addDropOpen", "addDropOpensAt", "addDropClosesAt"]) {
         if (Object.hasOwn(req.body, key)) offering[key] = req.body[key];
       }
       await offering.save({ session });

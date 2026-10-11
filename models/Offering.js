@@ -66,6 +66,7 @@ const offeringSchema = new mongoose.Schema({
     default: 0,
     min: 0, validate: validation.nonnegativeInteger
   },
+  addDropOpensAt: { type: Date },
   addDropClosesAt: { type: Date },
   addDropOpen: {
     type: Boolean,
@@ -76,7 +77,10 @@ const offeringSchema = new mongoose.Schema({
 offeringSchema.pre("validate", function () {
   if (this.addDropOpen && (!this.addDropClosesAt ||
       ((this.isModified("addDropOpen") || this.isModified("addDropClosesAt")) && this.addDropClosesAt <= new Date()))) {
-    this.invalidate("addDropClosesAt", "An open add/drop window requires a future closing date");
+    this.invalidate("addDropClosesAt", "An open course requires a future closing date");
+  }
+  if (this.addDropOpensAt && this.addDropClosesAt && this.addDropOpensAt > this.addDropClosesAt) {
+    this.invalidate("addDropClosesAt", "Course closing date must be after opening date");
   }
   if (this.startTime >= this.endTime) this.invalidate("endTime", "End time must be after start time");
   if (this.enrolled > this.seats) this.invalidate("seats", "Seats cannot be below current enrolment");

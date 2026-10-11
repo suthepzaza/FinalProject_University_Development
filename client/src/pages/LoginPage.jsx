@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api';
 
@@ -9,7 +9,20 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('theme') === 'dark' || document.documentElement.classList.contains('dark');
+  });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDark]);
 
   const handleForgotPassword = (e) => {
     e.preventDefault();
@@ -45,8 +58,32 @@ export default function LoginPage() {
   };
 
   return (
-    <section className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4 py-8 antialiased">
-      {/* Stamford Portal Branding Header */}
+    <section className={`min-h-screen ${isDark ? 'bg-[#140413]' : 'bg-[#6D1E61]'} flex flex-col items-center justify-center px-4 py-8 antialiased transition-colors duration-200 relative`}>
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={() => setIsDark(!isDark)}
+          type="button"
+          className="p-2 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors flex items-center gap-1.5 border border-white/10"
+          title="Toggle Dark Option"
+        >
+          {isDark ? (
+            <>
+              <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fillRule="evenodd" clipRule="evenodd" />
+              </svg>
+              <span className="text-xs font-semibold">Light</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+              </svg>
+              <span className="text-xs font-semibold">Dark</span>
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="flex items-center mb-6 text-2xl font-semibold text-white tracking-tight">
         <div className="p-2 mr-3 bg-blue-600 rounded-xl shadow-md flex items-center justify-center">
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -178,9 +215,16 @@ export default function LoginPage() {
             )}
           </button>
 
-          <p className="text-sm font-medium text-center text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
-            Contact the administrator for an account.
-          </p>
+          <div className="text-sm font-medium text-center text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
+            Don't have an account?{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/signup')}
+              className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+            >
+              Sign Up
+            </button>
+          </div>
         </form>
       </div>
     </section>

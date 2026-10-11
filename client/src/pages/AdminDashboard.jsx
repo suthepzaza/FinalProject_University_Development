@@ -13,6 +13,20 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('theme') === 'dark' || document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDark]);
+
   // Pagination state (Flowbite table footer pattern)
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -240,9 +254,9 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#B52709] text-slate-100 font-sans antialiased">
+    <div className={`min-h-screen ${isDark ? 'bg-[#140413]' : 'bg-[#6D1E61]'} text-slate-100 font-sans antialiased transition-colors duration-200`}>
       {/* Top Navbar Header */}
-      <header className="border-b border-red-950/30 bg-[#801905]/85 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+      <header className={`border-b ${isDark ? 'border-purple-950/60 bg-[#1e071c]/90' : 'border-purple-950/30 bg-[#4E1546]/85'} backdrop-blur-md sticky top-0 z-30 shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding & Title */}
@@ -266,7 +280,30 @@ export default function AdminDashboard() {
             </div>
 
             {/* Current User Badge & Logout */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <button
+                onClick={() => setIsDark(!isDark)}
+                type="button"
+                className="p-2 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors flex items-center gap-1.5 border border-white/10"
+                title="Toggle Dark Option"
+              >
+                {isDark ? (
+                  <>
+                    <svg className="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fillRule="evenodd" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs font-semibold hidden sm:inline">Light</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                    </svg>
+                    <span className="text-xs font-semibold hidden sm:inline">Dark</span>
+                  </>
+                )}
+              </button>
+
               <div className="hidden md:flex items-center space-x-3 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
                 <div className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 flex items-center justify-center font-bold text-xs">
                   {getInitials(currentUser.name, currentUser.email)}
