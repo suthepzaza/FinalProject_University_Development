@@ -19,6 +19,9 @@ exports.list = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { code, title, section, term, day, startTime, endTime, room, instructor, seats, addDropOpen, addDropOpensAt, addDropClosesAt } = req.body;
+    if (typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ error: "Course code is required" });
+    }
     let course = await Course.findOne({ code: code.toUpperCase() });
     if (!course) {
       course = await Course.create({
@@ -66,7 +69,7 @@ exports.update = async (req, res) => {
     });
     res.json(updated);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   }
 };
 
@@ -75,7 +78,7 @@ exports.remove = async (req, res) => {
   try {
     await mongoose.connection.transaction(async session => {
       const offering = await Offering.findById(req.params.id).session(session);
-      if (!offering) throw new Error("Offering not found");
+      if (!offering) { const error = new Error("Offering not found"); error.status = 404; throw error; }
       if (await Registration.exists({ offeringId: offering._id }).session(session)) {
         throw new Error("Cannot remove an offering with registrations");
       }
@@ -83,6 +86,6 @@ exports.remove = async (req, res) => {
     });
     res.status(200).json({ message: "Offering deleted successfully" });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   }
 };

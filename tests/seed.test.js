@@ -102,7 +102,7 @@ test("seed creates the complete validated dataset with hashed passwords and work
   const server = app.listen(0, "127.0.0.1");
   await new Promise(resolve => server.once("listening", resolve));
   try {
-    for (const [role, email] of [["admin", "admin@stamford.edu"], ["advisor", "advisor@stamford.edu"], ["student", "sami@stamford.edu"]]) {
+    for (const [role, email] of [["admin", "admin@stamford.edu"], ["advisor", "advisor@stamford.edu"], ["student", "student01@stamford.edu"]]) {
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/login`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: "password123" })

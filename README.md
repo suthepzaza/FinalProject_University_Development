@@ -46,11 +46,11 @@ PowerShell users can use `npm.cmd` if script execution policy blocks `npm`.
 | --- | --- | --- |
 | Admin | admin@stamford.edu | password123 |
 | Advisor | advisor@stamford.edu | password123 |
-| Student | sami@stamford.edu | password123 |
+| Student | student01@stamford.edu | password123 |
 
 All names, IDs and grades are invented. Login emails are demo aliases.
-Students have IDs DEMO2026001?DEMO2026025 and are assigned to four advisors.
-Mira Maple (sami@stamford.edu) failed ITE240; Maya Linden failed ITE441.
+Students have IDs DEMO2026001 to DEMO2026025 and are assigned to four advisors.
+Mira Maple (student01@stamford.edu) failed ITE240; Maya Linden (student13@stamford.edu) failed ITE441.
 Academic histories span 2023-1 through 2025-2. Registrations start empty.
 The seed refuses populated databases and never deletes existing data.
 A failed seed may leave partial data; use a fresh empty database before retrying.
@@ -63,14 +63,11 @@ clashes are blocked with explanations. These checks also run when registering,
 and MongoDB transactions keep registration and seat counts consistent.
 Prerequisite checks are excluded because the project document does not require them.
 
-Advisors set the add/drop window and closing date in the section form. Students
-see open/closed status and the closing date. Open windows require a future date
-and close automatically after the deadline (end of the selected day in Bangkok).
-Existing windows without a deadline stay closed until the advisor supplies one.
-The advisor's Finalize term button locks new registrations and removals for the
-selected term on the server and closes its add/drop requests. Finalisation
-requires confirmation and cannot be undone through the dashboard.
-Students
+Advisors open and close the add/drop window for each section, with an opening
+and closing date. Students see open/closed status and the closing date. Open
+windows require a future date and close automatically after the deadline (end of
+the selected day in Bangkok). Windows without a deadline stay closed until the
+advisor supplies one. Only advisors register or remove courses; students
 download the form, complete and sign it, then email their assigned advisor using
 `Add/Drop Request - <Student ID> - <Course Code>`. The advisor updates registration
 manually. The form is in `client/public/add-drop-request-form.pdf`.

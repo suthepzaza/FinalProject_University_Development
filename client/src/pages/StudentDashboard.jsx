@@ -6,13 +6,11 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [registrations, setRegistrations] = useState([]);
   const [record, setRecord] = useState([]);
-  const [offerings, setOfferings] = useState([]);
+  const [advisorEmail, setAdvisorEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [registeringId, setRegisteringId] = useState(null);
-  const [droppingId, setDroppingId] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null);
   const [selectedOffering, setSelectedOffering] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'register' | 'registrations' | 'record'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'registrations' | 'record'
   const [searchQuery, setSearchQuery] = useState('');
 
   // Academic record view & sorting controls
@@ -40,16 +38,19 @@ export default function StudentDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [regRes, recRes, offRes] = await Promise.all([
+      const [regRes, recRes, profileRes] = await Promise.all([
         API.get('/me/registrations'),
         API.get('/me/record'),
-        API.get('/offerings?term=2026-1')
+        API.get('/me/profile')
       ]);
       setRegistrations(regRes.data || []);
       setRecord(recRes.data || []);
-      setOfferings(offRes.data || []);
+      setAdvisorEmail(profileRes.data?.advisorId?.email || '');
     } catch (err) {
-      console.error('Failed to load dashboard data', err);
+      setStatusMessage({
+        text: err.response?.data?.error || 'Failed to load your dashboard. Please refresh the page.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -68,46 +69,12 @@ export default function StudentDashboard() {
     navigate('/login');
   };
 
-  // Course registration handler
-  const handleRegisterCourse = async (offeringId) => {
-    try {
-      setRegisteringId(offeringId);
-      setStatusMessage(null);
-      await API.post('/registrations', { offeringId, term: '2026-1' });
-      setStatusMessage({ text: 'Course registered successfully!', type: 'success' });
-      await loadData();
-    } catch (err) {
-      setStatusMessage({
-        text: err.response?.data?.error || err.response?.data?.message || 'Failed to register for course',
-        type: 'error'
-      });
-    } finally {
-      setRegisteringId(null);
-    }
-  };
-
-  // Course drop handler
-  const handleDropCourse = async (registrationId) => {
-    if (!window.confirm('Are you sure you want to drop this course?')) return;
-    try {
-      setDroppingId(registrationId);
-      setStatusMessage(null);
-      await API.delete(`/registrations/${registrationId}`);
-      setStatusMessage({ text: 'Course dropped successfully.', type: 'success' });
-      await loadData();
-    } catch (err) {
-      setStatusMessage({
-        text: err.response?.data?.error || err.response?.data?.message || 'Failed to drop course',
-        type: 'error'
-      });
-    } finally {
-      setDroppingId(null);
-    }
-  };
-
   const totalCredits = record.reduce((sum, item) => sum + (item.grade !== 'F' && item.grade !== 'W' ? (item.courseId?.credits || item.credits || 3) : 0), 0);
-  const passedCoursesCount = record.filter(r => r.grade !== 'F' && r.grade !== 'W').length;
+  const retakeCount = record.filter(r => r.grade === 'F').length;
   const anyAddDropOpen = registrations.some(r => r.offeringId?.addDropOpen);
+  // Add/drop requests go to the student's assigned advisor; the section's advisor is the fallback
+  const requestEmail = advisorEmail || selectedOffering?.advisorEmail || 'advisor@stamford.edu';
+  const requestSubject = `Add/Drop Request - ${user.studentId} - ${selectedOffering?.courseId?.code || selectedOffering?.code || ''}`;
 
   const getInitials = (name, email) => {
     if (name) {
@@ -117,43 +84,6 @@ export default function StudentDashboard() {
     }
     return email ? email.substring(0, 2).toUpperCase() : 'ST';
   };
-
-  // Extract set of registered offering IDs
-  const registeredOfferingIds = useMemo(() => {
-    const ids = new Set();
-    registrations.forEach(r => {
-      const oid = r.offeringId?._id || r.offeringId;
-      if (oid) ids.add(String(oid));
-    });
-    return ids;
-  }, [registrations]);
-
-  // Courses this student already passed, matching the backend rule in services/registration.js
-  const completedCourseCodes = useMemo(() => {
-    const passingGrades = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D'];
-    const codes = new Set();
-    record.forEach(item => {
-      const code = item.courseId?.code || item.code;
-      if (code && passingGrades.includes(item.grade)) codes.add(code);
-    });
-    return codes;
-  }, [record]);
-
-  // Only open offerings (same status the advisor dashboard shows) for courses the student has not taken yet
-  const availableOfferings = useMemo(() => {
-    return offerings.filter(off => off.addDropOpen && !completedCourseCodes.has(off.courseId?.code || off.code));
-  }, [offerings, completedCourseCodes]);
-
-  // Filter current term offerings
-  const filteredOfferings = useMemo(() => {
-    return availableOfferings.filter((off) => {
-      const code = (off.courseId?.code || off.code || '').toLowerCase();
-      const title = (off.courseId?.title || off.title || '').toLowerCase();
-      const instructor = (off.instructor || '').toLowerCase();
-      const q = searchQuery.toLowerCase();
-      return !searchQuery || code.includes(q) || title.includes(q) || instructor.includes(q);
-    });
-  }, [availableOfferings, searchQuery]);
 
   // Filter registrations by search query
   const filteredRegistrations = useMemo(() => {
@@ -218,23 +148,23 @@ export default function StudentDashboard() {
     return list;
   }, [record, searchQuery, selectedYear, recordSortOrder]);
 
-  // Records grouped by Year: { "2024": [...], "2025": [...] }
-  const recordsByYear = useMemo(() => {
+  // Records grouped by term: { "2024-1": [...], "2024-2": [...] }
+  const recordsByTerm = useMemo(() => {
     const map = {};
     processedRecords.forEach(item => {
-      const year = item.term ? item.term.split('-')[0] : 'Other';
-      if (!map[year]) map[year] = [];
-      map[year].push(item);
+      const term = item.term || 'Other';
+      if (!map[term]) map[term] = [];
+      map[term].push(item);
     });
 
-    const sortedYears = Object.keys(map).sort((a, b) => {
+    const sortedTerms = Object.keys(map).sort((a, b) => {
       return recordSortOrder === 'year-asc' ? a.localeCompare(b) : b.localeCompare(a);
     });
 
-    return sortedYears.map(year => ({
-      year,
-      courses: map[year],
-      totalCredits: map[year].reduce((acc, c) => acc + (c.grade !== 'F' && c.grade !== 'W' ? (c.courseId?.credits || c.credits || 3) : 0), 0)
+    return sortedTerms.map(term => ({
+      term,
+      courses: map[term],
+      totalCredits: map[term].reduce((acc, c) => acc + (c.grade !== 'F' && c.grade !== 'W' ? (c.courseId?.credits || c.credits || 3) : 0), 0)
     }));
   }, [processedRecords, recordSortOrder]);
 
@@ -314,6 +244,11 @@ export default function StudentDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {loading && (
+          <div className="p-3 rounded-xl text-sm font-medium bg-white/10 text-slate-200 border border-white/10">
+            Loading your registration and academic record...
+          </div>
+        )}
         {statusMessage && (
           <div
             className={`p-4 rounded-xl flex items-center justify-between shadow-lg border transition-all ${
@@ -365,14 +300,11 @@ export default function StudentDashboard() {
 
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Available Offerings</p>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{availableOfferings.length}</h3>
-              <button
-                onClick={() => setActiveTab('register')}
-                className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline mt-1 block"
-              >
-                Browse & Register →
-              </button>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Retake Required</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{retakeCount}</h3>
+              <p className={`text-xs font-medium mt-1 ${retakeCount ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                {retakeCount ? 'Course(s) graded F' : 'No failed courses'}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,10 +317,10 @@ export default function StudentDashboard() {
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Course Status</p>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                {anyAddDropOpen ? 'Open Course' : 'Active Term'}
+                {anyAddDropOpen ? 'Add/Drop Open' : 'Add/Drop Closed'}
               </h3>
               <p className={`text-xs font-medium mt-1 ${anyAddDropOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                {anyAddDropOpen ? '● Online registration active' : 'Term 2026-1 in session'}
+                {anyAddDropOpen ? '● Requests accepted for some courses' : 'Term 2026-1 in session'}
               </p>
             </div>
             <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${anyAddDropOpen ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
@@ -410,17 +342,6 @@ export default function StudentDashboard() {
               }`}
             >
               All Sections
-            </button>
-            <button
-              onClick={() => setActiveTab('register')}
-              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === 'register'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span>✍️ Current Term Register</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">{availableOfferings.length}</span>
             </button>
             <button
               onClick={() => setActiveTab('registrations')}
@@ -470,175 +391,6 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* CURRENT TERM REGISTER OPTIONS SECTION */}
-        {(activeTab === 'all' || activeTab === 'register') && (
-          <div className="bg-white dark:bg-gray-800 relative shadow-xl sm:rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 gap-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center font-bold text-sm">
-                  ✍️
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    Current Term Register Options (Term 2026-1)
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-                      Open Enrollment
-                    </span>
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Browse course sections and register directly into available classes
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                {filteredOfferings.length} sections offered
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
-                  <tr>
-                    <th scope="col" className="px-6 py-3.5 font-semibold">Course</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold">Section</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold">Schedule & Room</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold">Instructor</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold text-center">Available Seats</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold text-center">Closes On</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold text-center">Registration Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {filteredOfferings.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                        {searchQuery ? 'No course offerings found for this search.' : 'No open courses to register right now. Check back when your advisor opens more sections.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredOfferings.map((offering) => {
-                      const offeringId = offering._id || offering.id;
-                      const isEnrolled = registeredOfferingIds.has(String(offeringId));
-                      const myReg = registrations.find(r => String(r.offeringId?._id || r.offeringId) === String(offeringId));
-                      const seatsTotal = offering.seats || 30;
-                      const enrolledCount = offering.enrolled || 0;
-                      const seatsLeft = Math.max(0, seatsTotal - enrolledCount);
-                      const isFull = seatsLeft <= 0 && !isEnrolled;
-                      const isRegLoading = registeringId === offeringId;
-                      const isDropLoading = droppingId === (myReg?._id || myReg?.id);
-
-                      return (
-                        <tr
-                          key={offeringId}
-                          className={`hover:bg-gray-50/80 dark:hover:bg-gray-700/50 transition-colors ${
-                            isEnrolled ? 'bg-blue-50/30 dark:bg-blue-950/20' : 'bg-white dark:bg-gray-800'
-                          }`}
-                        >
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-gray-900 dark:text-white">
-                              {offering.courseId?.code || offering.code}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {offering.courseId?.title || offering.title} ({offering.courseId?.credits || offering.credits || 3} cr)
-                            </div>
-                            {offering.addDropClosesAt && (
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1 flex items-center gap-1">
-                                <span>⏰ Closes:</span>
-                                <span className="font-semibold">{offering.addDropClosesAt.slice(0, 10)}</span>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                              Sec {offering.section || '1'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs">
-                            <div className="text-gray-900 dark:text-white font-medium">
-                              {offering.day || 'TBA'} {offering.startTime} - {offering.endTime}
-                            </div>
-                            <div className="text-gray-500 dark:text-gray-400">
-                              {offering.room || 'TBA'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-xs font-medium text-gray-700 dark:text-gray-300">
-                            {offering.instructor || 'Staff'}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                isFull
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                  : seatsLeft <= 5
-                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                              }`}
-                            >
-                              {seatsLeft} / {seatsTotal} left
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            {offering.addDropClosesAt ? (
-                              <div className="inline-flex flex-col items-center">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                  <svg className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                  <span>{offering.addDropClosesAt.slice(0, 10)}</span>
-                                </span>
-                                <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                  End of day
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">Open Enrollment</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            {isEnrolled ? (
-                              <div className="inline-flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                                  ✓ Registered
-                                </span>
-                                {myReg && (
-                                  <button
-                                    onClick={() => handleDropCourse(myReg._id || myReg.id)}
-                                    disabled={isDropLoading}
-                                    className="px-2.5 py-1 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors border border-red-200 dark:border-red-800 disabled:opacity-50"
-                                    title="Drop this course"
-                                  >
-                                    {isDropLoading ? 'Dropping...' : 'Drop'}
-                                  </button>
-                                )}
-                              </div>
-                            ) : isFull ? (
-                              <span className="text-xs text-gray-400 italic">Section Full</span>
-                            ) : (
-                              <button
-                                onClick={() => handleRegisterCourse(offeringId)}
-                                disabled={isRegLoading}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
-                              >
-                                {isRegLoading ? (
-                                  <span>Registering...</span>
-                                ) : (
-                                  <>
-                                    <span>+ Register</span>
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* CURRENT TERM REGISTRATIONS SECTION */}
         {(activeTab === 'all' || activeTab === 'registrations') && (
           <div className="bg-white dark:bg-gray-800 relative shadow-xl sm:rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -670,7 +422,7 @@ export default function StudentDashboard() {
                     <th scope="col" className="px-6 py-3.5 font-semibold">Section</th>
                     <th scope="col" className="px-6 py-3.5 font-semibold">Instructor</th>
                     <th scope="col" className="px-6 py-3.5 font-semibold">Schedule & Room</th>
-                    <th scope="col" className="px-6 py-3.5 font-semibold text-center">Closes On</th>
+                    <th scope="col" className="px-6 py-3.5 font-semibold text-center">Add/Drop Status</th>
                     <th scope="col" className="px-6 py-3.5 font-semibold text-center">Add/Drop Action</th>
                   </tr>
                 </thead>
@@ -694,12 +446,7 @@ export default function StudentDashboard() {
                             {code}
                           </td>
                           <td className="px-6 py-4 text-gray-900 dark:text-white">
-                            <div>{title}</div>
-                            {offering.addDropClosesAt && (
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
-                                Closes: {offering.addDropClosesAt.slice(0, 10)}
-                              </div>
-                            )}
+                            {title}
                           </td>
                           <td className="px-6 py-4">
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
@@ -718,32 +465,34 @@ export default function StudentDashboard() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            {offering.addDropClosesAt ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                <span>{offering.addDropClosesAt.slice(0, 10)}</span>
-                              </span>
+                            {isOpen ? (
+                              <div className="inline-flex flex-col items-center">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                  Add/Drop: Open
+                                </span>
+                                {offering.addDropClosesAt && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                                    Closes {offering.addDropClosesAt.slice(0, 10)}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-xs text-gray-400 italic">Open Enrollment</span>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                Add/Drop: Closed
+                              </span>
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="inline-flex items-center gap-2">
+                            {isOpen ? (
                               <button
-                                onClick={() => handleDropCourse(registration._id)}
-                                disabled={droppingId === registration._id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 rounded-lg transition-colors border border-red-200 dark:border-red-800 disabled:opacity-50"
+                                onClick={() => setSelectedOffering(offering)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
                               >
-                                {droppingId === registration._id ? 'Dropping...' : 'Drop Class'}
+                                Request add/drop
                               </button>
-                              {isOpen && (
-                                <button
-                                  onClick={() => setSelectedOffering(offering)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
-                                >
-                                  Request Form
-                                </button>
-                              )}
-                            </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">Not available</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -768,7 +517,7 @@ export default function StudentDashboard() {
                     Academic Record & History
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Cumulative course transcript organized by academic years
+                    Completed courses and grades, grouped by term
                   </p>
                 </div>
               </div>
@@ -820,7 +569,7 @@ export default function StudentDashboard() {
                         : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
                     }`}
                   >
-                    Group by Year
+                    Group by Term
                   </button>
                   <button
                     type="button"
@@ -841,29 +590,29 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            {/* GROUPED BY YEAR VIEW */}
+            {/* GROUPED BY TERM VIEW */}
             {recordViewMode === 'grouped' ? (
-              recordsByYear.length === 0 ? (
+              recordsByTerm.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
                   No academic history found for the selected criteria.
                 </div>
               ) : (
-                recordsByYear.map(({ year, courses, totalCredits: yearCredits }) => (
+                recordsByTerm.map(({ term, courses, totalCredits: termCredits }) => (
                   <div
-                    key={year}
+                    key={term}
                     className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700"
                   >
                     <div className="bg-gradient-to-r from-purple-900/10 to-blue-900/10 dark:from-purple-950/40 dark:to-blue-950/40 px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-base font-bold text-gray-900 dark:text-white">
-                          📅 Academic Year {year}
+                          📅 Term {term}
                         </span>
                         <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
                           {courses.length} Courses
                         </span>
                       </div>
                       <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        Earned in {year}: {yearCredits} Credits
+                        Earned in {term}: {termCredits} Credits
                       </span>
                     </div>
 
@@ -1049,7 +798,7 @@ export default function StudentDashboard() {
                 <span className="text-blue-700 dark:text-blue-400">{selectedOffering.courseId?.code || 'Course'} - {selectedOffering.courseId?.title || ''}</span>
                 {selectedOffering.addDropClosesAt && (
                   <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium mt-0.5">
-                    Registration closes on: {selectedOffering.addDropClosesAt.slice(0, 10)}
+                    Add/Drop closes on: {selectedOffering.addDropClosesAt.slice(0, 10)}
                   </div>
                 )}
               </div>
@@ -1062,7 +811,7 @@ export default function StudentDashboard() {
               <div className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 font-bold text-xs flex items-center justify-center">1</span>
                 <p>
-                  Download and complete the official university{' '}
+                  Download and open the{' '}
                   <a href="/add-drop-request-form.pdf" download className="text-blue-600 dark:text-blue-400 font-semibold underline hover:text-blue-700">
                     Add/Drop Request form (PDF)
                   </a>.
@@ -1072,16 +821,27 @@ export default function StudentDashboard() {
               <div className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 font-bold text-xs flex items-center justify-center">2</span>
                 <p>
-                  Fill in your student ID (<strong className="text-gray-900 dark:text-white">{user.studentId}</strong>), full name, term, and desired course section changes.
+                  Fill in your student ID (<strong className="text-gray-900 dark:text-white">{user.studentId}</strong>), name, term, and the course code and section you wish to add or drop.
                 </p>
               </div>
 
               <div className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 font-bold text-xs flex items-center justify-center">3</span>
+                <p>State the reason for the request and sign the form.</p>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 font-bold text-xs flex items-center justify-center">4</span>
                 <p>
-                  Send an email to your academic advisor at{' '}
-                  <strong className="text-gray-900 dark:text-white">{selectedOffering.advisorEmail || 'advisor@stamford.edu'}</strong> with the signed form attached.
+                  Email the completed form as an attachment to your advisor at{' '}
+                  <strong className="text-gray-900 dark:text-white">{requestEmail}</strong>, using the subject line:{' '}
+                  <code className="block mt-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white text-xs">{requestSubject}</code>
                 </p>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 font-bold text-xs flex items-center justify-center">5</span>
+                <p>Your advisor will confirm by email once the change is made.</p>
               </div>
             </div>
 
@@ -1094,7 +854,7 @@ export default function StudentDashboard() {
                 Cancel
               </button>
               <a
-                href={`mailto:${selectedOffering.advisorEmail || 'advisor@stamford.edu'}?subject=${encodeURIComponent(`Add/Drop Request - ${user.studentId} - ${selectedOffering.courseId?.code}`)}`}
+                href={`mailto:${requestEmail}?subject=${encodeURIComponent(requestSubject)}`}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm focus:ring-4 focus:ring-blue-300 transition-all"
               >
                 <span>✉️ Open Email Client</span>

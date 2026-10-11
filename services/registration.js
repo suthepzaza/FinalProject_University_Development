@@ -21,8 +21,9 @@ exports.addDropStatus = async offering => {
   const term = await Term.findOne({ code: offering.term });
   const result = offering.toObject ? offering.toObject() : { ...offering };
   const now = new Date();
+  // A window without a closing date stays closed until the advisor sets one.
   const isOpenByDates = (!offering.addDropOpensAt || new Date(offering.addDropOpensAt) <= now) &&
-    (!offering.addDropClosesAt || new Date(offering.addDropClosesAt) > now);
+    Boolean(offering.addDropClosesAt) && new Date(offering.addDropClosesAt) > now;
   result.addDropOpen = Boolean(offering.addDropOpen && isOpenByDates && !term?.finalized);
   return result;
 };

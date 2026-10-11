@@ -62,7 +62,7 @@ async function seed() {
       students.push(await User.create({
         ...profile(i),
         advisorId: advisors[i % advisors.length]._id,
-        email: i === 0 ? "sami@stamford.edu" : i === 1 ? "alice@stamford.edu" : `student${String(i + 1).padStart(2, "0")}@stamford.edu`,
+        email: `student${String(i + 1).padStart(2, "0")}@stamford.edu`,
         password: PASSWORD, role: "student", active: true
       }));
     }
@@ -101,7 +101,7 @@ async function seed() {
     console.log("25 students, 4 advisors, 1 admin created");
     console.log(`18 courses, 26 sections created for term ${TERM}`);
     console.log(`${records.length} completed-course records created`);
-    console.log(`\nDemo logins (password: ${PASSWORD}):\n  Student: sami@stamford.edu\n  Advisor: advisor@stamford.edu\n  Admin:   admin@stamford.edu`);
+    console.log(`\nDemo logins (password: ${PASSWORD}):\n  Student: student01@stamford.edu\n  Advisor: advisor@stamford.edu\n  Admin:   admin@stamford.edu`);
   } finally {
     await mongoose.disconnect();
   }
