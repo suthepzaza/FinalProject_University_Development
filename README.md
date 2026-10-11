@@ -64,3 +64,6 @@ Manual workflow implemented: Add/drop requests use a downloadable form and email
 Not attempted: Prerequisite checking, automated email notifications, and integration with the university’s live student-record system. Academic records use synthetic demonstration data.
 
 
+<img width="1919" height="1077" alt="Screenshot_2026-10-11_221448" src="https://github.com/user-attachments/assets/c7e7636a-80d0-48e8-9e70-eba43f2535b3" />
+<img width="1919" height="1033" alt="Screenshot_2026-10-11_221351" src="https://github.com/user-attachments/assets/3e225855-702f-477a-bad7-05844fec8d42" />
+<img width="1919" height="1032" alt="Screenshot_2026-10-11_221424" src="https://github.com/user-attachments/assets/eef9512b-218e-4bea-848a-7e54c998c071" />
