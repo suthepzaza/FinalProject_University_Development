@@ -12,7 +12,7 @@ const PASSWORD = "password123";
 // Invented demo identities, unrelated to classmates or real academic records.
 const studentNames = ["Mira Maple", "Arun Cedar", "Lina Willow", "Theo Birch", "Nora Aspen", "Kai Rowan", "Ella Clover", "Owen Fern", "Zara Hazel", "Leo Alder", "Iris Elm", "Finn Laurel", "Maya Linden", "Evan Oak", "Rhea Pine", "Noah Reed", "Anya Sage", "Luca Spruce", "Sora Violet", "Milo Juniper", "Ada Moss", "Remy Olive", "Tara Palm", "Jude Cypress", "Nila Lotus"];
 function variedTerm(term, i) { return `${Number(term.slice(0, 4)) - (i % 2)}${term.slice(4)}`; }
-function profile(i) { return { name: studentNames[i], studentId: 'DEMO2026' + String(i + 1).padStart(3, '0') }; }
+function profile(i) { return { name: studentNames[i], studentId: 'STU_26' + String(i + 1).padStart(3, '0') }; }
 // Source: BSC_CIS_IT curriculum 2025_update 9_July.docx.
 // Four credits per subject derived from the document's category totals.
 const catalogue = [

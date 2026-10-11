@@ -1,15 +1,26 @@
-# Course Registration System
 
-A MERN university course registration project with admin, advisor and student dashboards.
+University Dashboard Project 
 
-Features: role-based login, admin account management, course sections, live seat
-counts, advisor registration, eligibility explanations, student academic histories,
-credits earned and the manual add/drop form workflow.
+GROUP MEMBERS - 
 
-## Setup
+Suthep Singh 2407170011 " Team Lead " 
+Sami Parilti 2407080009 " Frontend " 
+Lawrence Joseph Calleya 2308230002 " Database & Backend " 
 
-Requires Node.js/npm and MongoDB Atlas (or a local replica set for transactions).
-Run from this project directory:
+The Course Registration System is a web application built with MongoDB, Express, React, and Node.js (MERN). It provides separate dashboards for administrators, advisors, and students to manage university course registration, course offerings, and academic records.
+Implemented features include:
+- Secure login and role-based access for administrators, advisors, and students.
+- User account management, including creating, editing, deleting, and activating or deactivating accounts.
+- Course section management, including schedules, rooms, instructors, and seat capacities.
+- Advisor-managed registration, allowing advisors to register students and remove registrations.
+- Available seat tracking, with seat counts updated when registrations change.
+- Registration eligibility checks that prevent duplicate enrollment, full-section registration, timetable clashes, and registration for previously passed courses.
+- Retake identification for failed courses.
+- Academic history and earned-credit viewing for students.
+- Manual add/drop workflow, using a downloadable form submitted by email to the assigned advisor.
+- Add/drop deadlines and term finalization, which close request windows and lock further registration changes.
+
+STEPS - 
 
 ```sh
 npm install
@@ -34,13 +45,7 @@ npm run dev --prefix client
 Open http://localhost:5173. The API runs on http://localhost:3000.
 PowerShell users can use `npm.cmd` if script execution policy blocks `npm`.
 
-## Seed data and login accounts
-
-```text
-25 students, 4 advisors, 1 admin created
-18 courses, 26 sections created for term 2026-1
-312 completed-course records created
-```
+ACCOUNTS -
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -48,143 +53,17 @@ PowerShell users can use `npm.cmd` if script execution policy blocks `npm`.
 | Advisor | advisor@stamford.edu | password123 |
 | Student | student01@stamford.edu | password123 |
 
-All names, IDs and grades are invented. Login emails are demo aliases.
-Students have IDs DEMO2026001 to DEMO2026025 and are assigned to four advisors.
-Mira Maple (student01@stamford.edu) failed ITE240; Maya Linden (student13@stamford.edu) failed ITE441.
-Academic histories span 2023-1 through 2025-2. Registrations start empty.
-The seed refuses populated databases and never deletes existing data.
-A failed seed may leave partial data; use a fresh empty database before retrying.
 
-## Registration rules
 
-Only sections offered in the selected term appear. Passed courses are excluded;
-failed courses are flagged for retake and listed first. Full sections and timetable
-clashes are blocked with explanations. These checks also run when registering,
-and MongoDB transactions keep registration and seat counts consistent.
-Prerequisite checks are excluded because the project document does not require them.
 
-Advisors open and close the add/drop window for each section, with an opening
-and closing date. Students see open/closed status and the closing date. Open
-windows require a future date and close automatically after the deadline (end of
-the selected day in Bangkok). Windows without a deadline stay closed until the
-advisor supplies one. Only advisors register or remove courses; students
-download the form, complete and sign it, then email their assigned advisor using
-`Add/Drop Request - <Student ID> - <Course Code>`. The advisor updates registration
-manually. The form is in `client/public/add-drop-request-form.pdf`.
+PROJECT FEATURES - 
 
-## Code and checks
+Complete: Login and role-based dashboards, administrator account management, course section management, registration eligibility checks, seat-count updates, and academic history with earned-credit display.
+Partly complete: Student self-registration is present in the interface, but student identity and ownership checks need further work in the registration API. Registration opening dates appear in the interface but are not fully handled by the backend. Term finalization exists in the backend but is not connected to the current advisor dashboard.
+Manual workflow implemented: Add/drop requests use a downloadable form and email link. Submission, approval, and request-status tracking are handled outside the application.
+Not attempted: Prerequisite checking, automated email notifications, and integration with the university’s live student-record system. Academic records use synthetic demonstration data.
 
-`models/` defines data, `routes/` applies authorization, `controllers/` handles
-requests and `services/` contains registration rules and transactions.
-React dashboards share simple layout and academic-history components. Fetch calls
-use `client/src/api.js`. Passwords are bcrypt hashes; protected endpoints check
-current account roles and students can only read their own histories.
 
-`npm test` runs isolated checks without changing MongoDB.
-`npm run build --prefix client` checks the React production build.
-The database diagram is included below.
-
-## Submission items still needed
-
-Course codes and titles use the supplied 2025 IT curriculum; credit values are
-derived from its category totals (four credits per subject). Section times, rooms,
-identities and grades are synthetic demo data.
-Add the group number, five members with student IDs and roles, and screenshots
-of all three dashboards. Prepare the group report and individual peer evaluations
-required by the document. Disclose AI assistance and how the result was verified.
-
-## Database diagram
-
-Student names and IDs are invented. `User.password` stores a bcrypt hash.
-Academic records and registrations reference student account ObjectIds.
-
-```mermaid
-erDiagram
-  USERS ||--o{ USERS : "advisorId"
-  USERS ||--o{ REGISTRATIONS : studentId
-  USERS ||--o{ ACADEMICRECORDS : studentId
-  COURSES ||--o{ OFFERINGS : courseId
-  COURSES ||--o{ ACADEMICRECORDS : courseId
-  OFFERINGS ||--o{ REGISTRATIONS : offeringId
-  USERS {
-    ObjectId _id
-    string name
-    string email
-    string password "bcrypt hash"
-    string role
-    string studentId
-    ObjectId advisorId
-    boolean active
-  }
-  COURSES {
-    ObjectId _id
-    string code
-    string title
-    int credits
-    string description
-  }
-  OFFERINGS {
-    ObjectId _id
-    ObjectId courseId
-    string term
-    string section
-    string day
-    string startTime
-    string endTime
-    string room
-    string instructor
-    string advisorEmail
-    int seats
-    int enrolled
-    boolean addDropOpen
-  }
-  REGISTRATIONS {
-    ObjectId _id
-    ObjectId studentId
-    ObjectId offeringId
-    string term
-    string status
-    date createdAt
-  }
-  ACADEMICRECORDS {
-    ObjectId _id
-    ObjectId studentId
-    ObjectId courseId
-    string term
-    string grade
-  }
-```
-
-Emails and student IDs are unique. Sections are unique by course, term and
-section number. Registrations are unique by student and offering. Remaining
-seats are `seats - enrolled`; seat changes and registrations share a transaction.
-Students are stored as user accounts. Course codes and titles are drawn from the supplied 2025 IT curriculum.
-
-## Curriculum source
-
-Source: `BSC_CIS_IT curriculum 2025_update 9_July.docx`, supplied by the group.
-The curriculum lists 40 credits for 10 general-education subjects and 100 credits
-for 25 professional subjects; the seed derives four credits per selected subject.
-Prerequisite annotations and year indicators are not part of course titles.
-Descriptions, schedules, student histories and grades are synthetic.
-
-| Code | Title | Credits |
-| --- | --- | --- |
-| BSC101 | Introduction to Computing and Intelligence Systems | 4 |
-| BSC103 | Introduction to Data structures and algorithms analysis | 4 |
-| ITE220 | Web Development II | 4 |
-| MAT101 | Fundamentals of Algebra | 4 |
-| ENG101 | Introduction to Academic Writing | 4 |
-| ITE221 | IT Programming I | 4 |
-| ITE222 | IT Programming II | 4 |
-| ITE441 | Database Management Systems I | 4 |
-| BSC104 | Computer Organization | 4 |
-| ITE240 | Operating Systems | 4 |
-| ITE475 | Network I | 4 |
-| MAT102 | Business Mathematics with MS Excel | 4 |
-| BSC102 | Discrete mathematics structures | 4 |
-| STA101 | Statistics for Everyday Life and Beyond | 4 |
-| ENG102 | Academic Writing | 4 |
-| BSC321 | System Analysis, Design, and Implementation | 4 |
-| BSC224 | Introduction to Data Science | 4 |
-| ITE420 | Information Assurance and Security I | 4 |
+<img width="1919" height="1077" alt="Screenshot_2026-10-11_221448" src="https://github.com/user-attachments/assets/c7e7636a-80d0-48e8-9e70-eba43f2535b3" />
+<img width="1919" height="1033" alt="Screenshot_2026-10-11_221351" src="https://github.com/user-attachments/assets/3e225855-702f-477a-bad7-05844fec8d42" />
+<img width="1919" height="1032" alt="Screenshot_2026-10-11_221424" src="https://github.com/user-attachments/assets/eef9512b-218e-4bea-848a-7e54c998c071" />
